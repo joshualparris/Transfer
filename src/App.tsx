@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DashboardData } from "../electron/types";
 const nav = [
   "Overview",
@@ -300,6 +300,8 @@ function Inventory({
   source: boolean;
   act: any;
 }) {
+  const logRef=useRef<HTMLPreElement>(null),followLog=useRef(true);
+  useEffect(()=>{const el=logRef.current;if(el&&followLog.current)el.scrollTop=el.scrollHeight},[data.inventory.logs.length]);
   return (
     <>
       <section className="panel intro">
@@ -326,7 +328,7 @@ function Inventory({
           </button>
         </div>
       </section>
-      {(data.inventory.running||data.inventory.logs.length>0)&&<section className="panel"><h2>{data.inventory.running?'Inventory running':'Inventory activity'}</h2><p>{data.inventory.progress?.message??'Preparing'} {data.inventory.progress?.counts?`— ${Object.entries(data.inventory.progress.counts).map(([k,v])=>`${k}: ${fmt(Number(v))}`).join(' · ')}`:''}</p><pre className="activitylog">{data.inventory.logs.map(x=>`${new Date(x.at).toLocaleTimeString()}  ${x.error?'ERROR':'INFO '}  [${x.module}] ${x.message}${x.counts?' — '+Object.entries(x.counts).map(([k,v])=>`${k}=${v}`).join(', '):''}`).join('\n')}</pre><p className="muted">Sensitive content and OAuth credentials are deliberately excluded from logs.</p></section>}
+      {(data.inventory.running||data.inventory.logs.length>0)&&<section className="panel"><h2>{data.inventory.running?'Inventory running':'Inventory activity'}</h2><p>{data.inventory.progress?.message??'Preparing'} {data.inventory.progress?.counts?`— ${Object.entries(data.inventory.progress.counts).map(([k,v])=>`${k}: ${fmt(Number(v))}`).join(' · ')}`:''}</p><pre ref={logRef} onScroll={e=>{const el=e.currentTarget;followLog.current=el.scrollHeight-el.scrollTop-el.clientHeight<28}} className="activitylog">{data.inventory.logs.map(x=>`${new Date(x.at).toLocaleTimeString()}  ${x.error?'ERROR':'INFO '}  [${x.module}] ${x.message}${x.counts?' — '+Object.entries(x.counts).map(([k,v])=>`${k}=${v}`).join(', '):''}`).join('\n')}</pre><p className="muted">Following newest entries automatically. Scroll up to pause following. Sensitive content and OAuth credentials are excluded.</p></section>}
       {inv && (
         <div className="inventorygrid">
           <Module
