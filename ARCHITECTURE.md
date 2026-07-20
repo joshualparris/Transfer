@@ -9,3 +9,12 @@ Phase 1 supplies the secure shell, settings, OAuth role validation, Gmail/Drive/
 Phase 2 adds `drive_manifest`, `backup_jobs`, and redacted `backup_logs`, plus one managed rclone subprocess. Renderer views use query-backed summaries/pages. rclone uses `spawn(executable, argumentArray, {shell:false})`; copy and verification are separate persisted jobs. Startup marks abandoned jobs interrupted, and rerunning the same copy safely resumes.
 
 Phase 3 adds paged Gmail discovery, deterministic label mapping, bounded leases, immediate destination-ID persistence, per-message verification and recovery searches. RAW MIME exists only in worker memory or an explicitly selected archive. Destination copy and source settings use separate incremental consent.
+
+Next improvements
+-----------------
+- Add a strongly-typed preload IPC contract so renderer/main communication is validated and easier to maintain.
+- Persist backup and migration job state in SQLite so interrupted operations can recover on restart.
+- Encapsulate external `rclone` subprocess handling and destination validation behind a dedicated drive job manager.
+- Improve progress observability by storing structured logs, audit events, and progress metrics for UI replay and post-mortem review.
+- Guide users through a step-based migration workflow instead of a flat navigation pattern.
+- Document explicit security boundaries for exported evidence, archive paths, and OAuth client handling.
