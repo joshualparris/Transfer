@@ -27,8 +27,15 @@ export const SOURCE_SCOPES = [
 export const DESTINATION_SCOPES = [
   "openid",
   "email",
-  "https://www.googleapis.com/auth/drive.file",
+];
+export const CONTACTS_DESTINATION_SCOPES = [
+  "openid",
+  "email",
   "https://www.googleapis.com/auth/contacts",
+];
+export const CALENDAR_DESTINATION_SCOPES = [
+  "openid",
+  "email",
   "https://www.googleapis.com/auth/calendar.app.created",
 ];
 export const GMAIL_COPY_SCOPES = [

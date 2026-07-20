@@ -45,7 +45,7 @@ npm run build
 1. Open [Google Cloud Console](https://console.cloud.google.com/), create a project such as “Cornerstone Lifeboat”, and select it.
 2. In **APIs & Services → Library**, enable Gmail API, Google Drive API, People API, and Google Calendar API. YouTube Data API v3 is not needed until its later module.
 3. Under **Google Auth platform**, configure the app name and contact email. Choose **External** unless your Workspace administrator makes an internal app available. Add both accounts as test users while the app is in testing.
-4. Configure the scopes the app requests. Source consent uses Gmail read-only, Drive read-only, Contacts read-only, Other Contacts read-only, and Calendar read-only. Destination consent uses Gmail labels/import, Drive file, Contacts, and app-created Calendar scopes. Workspace policy can still block these.
+4. Configure the scopes the app requests. Source consent uses Gmail read-only, Drive read-only, Contacts read-only, Other Contacts read-only, and Calendar read-only. The initial destination connection requests identity only; Gmail, Contacts, and Calendar write scopes are requested separately when each module is opened. Workspace policy can still block these.
 5. Under **Clients**, create an OAuth client of type **Desktop app** and download its JSON. Never commit this file.
 6. Start Lifeboat, open **Accounts**, select the JSON, connect **source**, and sign in as `joshua.parris@cornerstone.edu.au`.
 7. Connect **destination** separately and sign in as `joshualparris@gmail.com` or `joshparriscornerstone@gmail.com`. The app rejects identical accounts and other destinations.
