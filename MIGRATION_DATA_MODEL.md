@@ -7,3 +7,5 @@ Allowed states: `discovered`, `queued`, `copying`, `copied`, `verifying`, `verif
 Crash recovery changes stale `copying` to `failed-retryable` and stale `verifying` to `copied`; source IDs remain the idempotency anchor.
 
 Phase 2 adds `drive_manifest` for source IDs, resolved paths, ownership, checksums, export policy and capabilities; `backup_jobs` for copy/verification history and persisted progress; and redacted `backup_logs`. Startup marks active jobs interrupted. Destination locking prevents conflicting work.
+
+Phase 3 adds `gmail_runs`, `gmail_messages`, `gmail_label_map`, and `gmail_logs`. The unique `(source subject, destination subject, source message ID)` key is the idempotency boundary. Destination IDs are persisted immediately. Rows contain IDs, sizes, hashes, labels, retry state and verification evidence—never message content.

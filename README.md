@@ -2,7 +2,19 @@
 
 A local-first Electron migration cockpit for `joshua.parris@cornerstone.edu.au` to `joshualparris@gmail.com`, with `joshparriscornerstone@gmail.com` as the approved fallback. Phase 2 adds a real, managed and resumable Google Drive-to-local/NAS backup using `rclone copy`, non-destructive verification, a persistent Drive manifest, and a shared-with-me audit.
 
-Gmail copy remains Phase 3. No source deletion or `rclone sync` operation exists.
+Phase 3 adds Gmail copy and verification. No source deletion, Gmail send method, or `rclone sync` operation exists.
+
+## Gmail migration
+
+1. Reconnect both accounts after upgrading so Lifeboat records their stable Google account IDs.
+2. Open **Gmail migration** and authorise destination copy/draft access. This is incremental consent; source mailbox access remains read-only.
+3. Review the default query (`-in:spam -in:trash`), draft setting, and recommended **Insert** method. Run dry-run discovery first.
+4. Optionally select protected local/NAS storage for exact raw `.eml` archives. Raw mail is highly sensitive and is never placed in app data.
+5. Start the confirmed run. Lifeboat works two messages at a time, records the destination ID immediately, verifies metadata/date/attachments, and resumes safely after interruption.
+6. Export the redacted evidence bundle. Bodies, full subjects, recipients, raw MIME and attachment content are excluded.
+7. Separately authorise source settings if you want to audit forwarding or enable the confirmed vacation responder. Google restricts forwarding-address creation to domain-wide-delegated service accounts, so Lifeboat reports the required manual/admin action instead of requesting that authority.
+
+Lifeboat never calls Gmail message-send or draft-send methods.
 
 ## Drive backup first run
 

@@ -12,3 +12,5 @@
 - The rclone config is never opened, displayed, copied, or included in reports. Subprocess logs are redacted.
 
 Threat boundaries: a compromised operating-system user can access application data and may access keychain entries after OS approval. Reports and manifests can reveal filenames and account identifiers, so backup locations should be access-controlled.
+
+Gmail Phase 3 stores no bodies, raw MIME, recipient addresses, attachment bytes or full subjects in SQLite/logs. Headers become hashes or a sender domain. Production code contains no Gmail send method. Optional `.eml` archives are explicitly selected and written atomically. Source message access remains read-only; vacation settings require separate consent and confirmation.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — 2026-07-20
+
+- Added resumable Gmail message/draft manifests, safe label mapping and bounded migration.
+- Added `messages.insert` default, `messages.import` alternative and per-message verification.
+- Added uncertain-insert recovery search and optional atomic `.eml` archive.
+- Added incremental Gmail consent, vacation responder and honest forwarding audit.
+
 ## 0.2.0 — 2026-07-20
 
 - Added persistent Drive manifest, managed resumable rclone backup and destination locking.

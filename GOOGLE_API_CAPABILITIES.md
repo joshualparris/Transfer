@@ -24,3 +24,21 @@ Verified against official Google documentation on 20 July 2026. This is a design
 | Google Play | Transfer purchases between accounts | Not supported | Preserve evidence and verify renamed Workspace identity continuity. |
 
 Primary references: [Gmail messages import](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/import), [Drive export](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/export), [People other contacts](https://developers.google.com/people/api/rest/v1/otherContacts/list), [Calendar events import](https://developers.google.com/workspace/calendar/api/v3/reference/events/import), [YouTube quota](https://developers.google.com/youtube/v3/determine_quota_cost), [Google Photos API changes](https://developers.google.com/photos/support/updates).
+
+## Gmail Phase 3 decisions (verified 20 July 2026)
+
+| Capability | Classification | Decision / limitation |
+|---|---|---|
+| `messages.list` and `messages.get(format=raw)` | Supported | Source uses `gmail.readonly`; Gmail query syntax determines scope. |
+| `messages.insert` | Supported with limitations | Default. IMAP-append-like insertion bypasses most scanning, preserves MIME and never sends. Thread/system-label behavior is verified. |
+| `messages.import` | Supported with limitations | Advanced alternative with `processForCalendar=false` and `neverMarkSpam=true`; delivery-style scanning can change classification. |
+| `internalDateSource=dateHeader` | Manual verification required | A valid Date header drives the date; destination headers/internal date are compared. |
+| User/system labels | Supported with limitations | User/state labels map below `Cornerstone Import/`; supported state labels map directly. Reserved system labels are not recreated. |
+| Draft creation | Supported with limitations | `drafts.create` needs `gmail.compose`; drafts are verified to remain drafts. Sending methods are prohibited. |
+| HTTP batch | Supported with limitations | Maximum 100 calls and Google recommends no more than 50. Lifeboat uses bounded concurrency because each message has ordered download/insert/verify stages. |
+| Quotas/backoff | Supported with limitations | Current limits: 1,200,000 units/min/project and 6,000 units/min/user/project. Get costs 20; insert/import cost 25. Transient errors use capped exponential backoff with jitter. |
+| `history.list` | Supported with limitations | History IDs can expire, requiring full inventory; it is not the primary Phase 3 manifest. |
+| Vacation responder | Supported | Separate `gmail.settings.basic` consent and confirmed source write. |
+| Forwarding | Administrator-dependent | Audit is supported. `forwardingAddresses.create` requires `gmail.settings.sharing` and domain-wide-delegated service-account authority, which Lifeboat deliberately does not request. |
+
+References: [Gmail REST](https://developers.google.com/workspace/gmail/api/reference/rest), [quotas](https://developers.google.com/workspace/gmail/api/reference/quota), [batch requests](https://developers.google.com/workspace/gmail/api/guides/batch), [forwarding](https://developers.google.com/workspace/gmail/api/guides/forwarding_settings).

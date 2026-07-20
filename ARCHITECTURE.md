@@ -7,3 +7,5 @@ The migration engine is manifest-first: inventory creates immutable snapshots an
 Phase 1 supplies the secure shell, settings, OAuth role validation, Gmail/Drive/Contacts/Calendar inventory, persistent queue primitives, JSON/CSV/HTML reports, dry-run default, and sandbox inventory mode. Later modules attach workers to the same queue rather than bypassing it.
 
 Phase 2 adds `drive_manifest`, `backup_jobs`, and redacted `backup_logs`, plus one managed rclone subprocess. Renderer views use query-backed summaries/pages. rclone uses `spawn(executable, argumentArray, {shell:false})`; copy and verification are separate persisted jobs. Startup marks abandoned jobs interrupted, and rerunning the same copy safely resumes.
+
+Phase 3 adds paged Gmail discovery, deterministic label mapping, bounded leases, immediate destination-ID persistence, per-message verification and recovery searches. RAW MIME exists only in worker memory or an explicitly selected archive. Destination copy and source settings use separate incremental consent.

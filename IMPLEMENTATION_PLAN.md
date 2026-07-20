@@ -11,3 +11,5 @@
 Each phase must pass lint, type checking, automated tests, packaged build smoke testing, README/CHANGELOG updates and an actual workflow review. Unsupported work remains visibly unavailable rather than being represented by fake controls.
 
 Status: Phase 2 Drive-to-NAS backup, verification, native export policy and shared audit are implemented. Gmail migration remains Phase 3.
+
+Phase 3 status: Gmail discovery, label mapping, message insertion/import, draft creation, optional raw archive, recovery, verification, vacation response and forwarding audit are implemented. Live-account acceptance requires explicit OAuth and a test-sized migration.
