@@ -8,6 +8,7 @@ declare global {
       disconnect: (r: "source" | "destination") => Promise<DashboardData>;
       saveSettings: (v: unknown) => Promise<DashboardData>;
       runInventory: () => Promise<DashboardData>;
+      cancelInventory: () => Promise<DashboardData>;
       onInventoryProgress: (fn: (p: any) => void) => () => void;
       exportReports: () => Promise<string | null>;
       detectRclone: () => Promise<DashboardData>;

@@ -6,5 +6,6 @@ release/
 *.db-shm
 *.db-wal
 *.log
+test-results/
 .env*
 client_secret*.json

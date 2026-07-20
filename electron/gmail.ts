@@ -62,9 +62,10 @@ export function isRetryable(e: any) {
       ["rateLimitExceeded", "userRateLimitExceeded", "backendError"].includes(
         reason,
       )) ||
-    ["ECONNRESET", "ETIMEDOUT"].includes(e?.code)
+    ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN"].includes(e?.code)
   );
 }
+export async function withRetry<T>(fn:()=>Promise<T>,onRetry?:(attempt:number,error:string)=>void,maxAttempts=5):Promise<T>{let last:unknown;for(let attempt=0;attempt<maxAttempts;attempt++){try{return await fn()}catch(e){last=e;if(!isRetryable(e)||attempt===maxAttempts-1)throw e;onRetry?.(attempt+1,redact(e));await new Promise(resolve=>setTimeout(resolve,retryDelay(attempt)))}}throw last}
 export async function discoverGmail(
   db: LifeboatDatabase,
   input: {
@@ -84,17 +85,17 @@ export async function discoverGmail(
   let token: string | undefined,
     count = 0;
   do {
-    const r = await api.users.messages.list({
+    const r = await withRetry(()=>api.users.messages.list({
       userId: "me",
       maxResults: 500,
       pageToken: token,
       q: query,
       includeSpamTrash: false,
-    });
+    }), (attempt)=>onProgress?.({operation:'Retrying Gmail message list',attempt}));
     for (const ref of r.data.messages ?? []) {
       if (!ref.id) continue;
       const m = (
-          await api.users.messages.get({
+          await withRetry(async()=>await (api.users.messages.get as any)({
             userId: "me",
             id: ref.id,
             format: "metadata",
@@ -106,7 +107,7 @@ export async function discoverGmail(
               "Cc",
               "Subject",
             ],
-          })
+          }), (attempt)=>onProgress?.({operation:'Retrying Gmail message metadata',attempt,discovered:count}))
         ).data,
         p = parts(m);
       db.upsertGmailMessage({
@@ -134,19 +135,19 @@ export async function discoverGmail(
   if (input.includeDrafts) {
     let dToken: string | undefined;
     do {
-      const r = await api.users.drafts.list({
+      const r = await withRetry(()=>api.users.drafts.list({
         userId: "me",
         maxResults: 500,
         pageToken: dToken,
-      });
+      }), (attempt)=>onProgress?.({operation:'Retrying Gmail draft list',attempt}));
       for (const d of r.data.drafts ?? []) {
         if (!d.id) continue;
         const full = (
-            await api.users.drafts.get({
+            await withRetry(async()=>await (api.users.drafts.get as any)({
               userId: "me",
               id: d.id,
               format: "metadata",
-            })
+            }), (attempt)=>onProgress?.({operation:'Retrying Gmail draft metadata',attempt,discovered:count}))
           ).data,
           m = full.message;
         if (!m?.id) continue;

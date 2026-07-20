@@ -43,6 +43,7 @@ let win: BrowserWindow | null = null,
   inventoryProgress: any = {},
   inventoryLogs: any[] = [],
   inventoryRunning = false,
+  inventoryCancelled = false,
   gmailProgress: any = {},
   gmailRun: string | null = null;
 const runner = new RcloneProcess(),
@@ -183,9 +184,10 @@ ipcMain.handle("run-inventory", async () => {
   const source = db.accounts().find((a) => a.role === "source");
   if (!source) throw new Error("Connect the source account first");
   if(inventoryRunning)throw new Error('Account inventory is already running');
-  inventoryRunning=true;inventoryLogs=[];inventoryProgress={module:'inventory',message:'Starting'};
-  try{const snap = await inventory(source.email,(event)=>{const entry={at:new Date().toISOString(),...event};inventoryProgress=entry;inventoryLogs.push(entry);win?.webContents.send('inventory-progress',entry)});db.saveInventory(snap);return dashboard()}finally{inventoryRunning=false;win?.webContents.send('inventory-progress',{at:new Date().toISOString(),module:'inventory',message:'Ready'})}
+  inventoryRunning=true;inventoryCancelled=false;inventoryLogs=[];inventoryProgress={module:'inventory',message:'Starting'};
+  try{const snap = await inventory(source.email,(event)=>{const entry={at:new Date().toISOString(),...event};inventoryProgress=entry;inventoryLogs.push(entry);win?.webContents.send('inventory-progress',entry)},()=>inventoryCancelled);if(!inventoryCancelled)db.saveInventory(snap);return dashboard()}finally{inventoryRunning=false;win?.webContents.send('inventory-progress',{at:new Date().toISOString(),module:'inventory',message:inventoryCancelled?'Cancelled':'Ready'})}
 });
+ipcMain.handle('cancel-inventory',()=>{inventoryCancelled=true;return dashboard()});
 ipcMain.handle("export-reports", async () => {
   const snap = db.latestInventory();
   if (!snap) throw new Error("Run an inventory first");

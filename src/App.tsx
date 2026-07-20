@@ -318,6 +318,7 @@ function Inventory({
           >
             Account inventory
           </button>
+          {data.inventory.running&&<button className="danger" onClick={()=>act('cancel-inventory',()=>window.lifeboat.cancelInventory())}>Stop inventory</button>}
           <button
             disabled={!source || !!busy}
             onClick={() =>
@@ -574,7 +575,7 @@ function JobHistory({ jobs }: { jobs: any[] }) {
       {jobs.length ? (
         jobs.map((j) => (
           <div className="job" key={j.id}>
-            <b>{j.type.replaceAll("_", " ")}</b>
+            <b>{String(j.type??"gmail_migration").replaceAll("_", " ")}</b>
             <span>{j.status}</span>
             <small>{j.started_at}</small>
           </div>

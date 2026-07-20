@@ -218,7 +218,7 @@ export async function authFor(role: AccountRole) {
   return auth;
 }
 
-export async function inventory(email: string,onProgress?:(event:{module:string;message:string;counts?:Record<string,number>;done?:boolean;error?:boolean})=>void): Promise<InventorySnapshot> {
+export async function inventory(email: string,onProgress?:(event:{module:string;message:string;counts?:Record<string,number>;done?:boolean;error?:boolean})=>void,shouldCancel:()=>boolean=()=>false): Promise<InventorySnapshot> {
   const auth = await authFor("source"),
     errors: InventorySnapshot["errors"] = [];
   const snap: InventorySnapshot = {
@@ -255,17 +255,8 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
     snap.gmail.messages = profile.data.messagesTotal ?? 0;
     snap.gmail.threads = profile.data.threadsTotal ?? 0;
     const labels = await api.users.labels.list({ userId: "me" });
-    for (const l of labels.data.labels ?? []) {
-      if (!l.id) continue;
-      const full = await api.users.labels.get({ userId: "me", id: l.id });
-      snap.gmail.labels.push({
-        id: l.id,
-        name: l.name ?? l.id,
-        messages: full.data.messagesTotal ?? 0,
-        threads: full.data.threadsTotal ?? 0,
-      });
-      onProgress?.({module:'gmail',message:'Reading Gmail labels',counts:{labels:snap.gmail.labels.length,messages:snap.gmail.messages}});
-    }
+    const pending=(labels.data.labels??[]).filter(l=>l.id);
+    for(let i=0;i<pending.length;i+=5){if(shouldCancel())throw new Error('Inventory cancelled by user');const batch=await Promise.all(pending.slice(i,i+5).map(async l=>({label:l,full:await api.users.labels.get({userId:'me',id:l.id!})})));for(const {label:l,full} of batch)snap.gmail.labels.push({id:l.id!,name:l.name??l.id!,messages:full.data.messagesTotal??0,threads:full.data.threadsTotal??0});onProgress?.({module:'gmail',message:'Reading Gmail labels',counts:{labels:snap.gmail.labels.length,messages:snap.gmail.messages}})}
     onProgress?.({module:'gmail',message:'Gmail inventory complete',counts:{messages:snap.gmail.messages,threads:snap.gmail.threads,labels:snap.gmail.labels.length},done:true});
   } catch (e) {
     errors.push({ module: "gmail", message: redact(e) });
