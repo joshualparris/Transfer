@@ -1,0 +1,5 @@
+export type AccountRole = 'source' | 'destination';
+export type ItemStatus = 'discovered'|'queued'|'copying'|'copied'|'verifying'|'verified'|'skipped'|'manual-action-required'|'failed-retryable'|'failed-permanent';
+export interface AccountSummary { role: AccountRole; email: string; scopes: string[]; connectedAt: string }
+export interface InventorySnapshot { runId: string; createdAt: string; account: string; gmail: { messages: number; threads: number; labels: Array<{id:string;name:string;messages:number;threads:number}> }; drive: { usageBytes: number; limitBytes: number|null; files:number; folders:number; googleNative:number; owned:number; shared:number; bytes:number }; contacts: { contacts:number; groups:number; otherContacts:number|null }; calendar: { calendars:number; owned:number; shared:number; events:number; recurring:number; future:number }; errors: Array<{module:string;message:string}> }
+export interface DashboardData { settings:{deadline:string;dryRun:boolean;sourceEmail:string;destinationEmail:string;fallbackEmail:string}; accounts:AccountSummary[]; latestInventory:InventorySnapshot|null; queue:Record<string,number> }

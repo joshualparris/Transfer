@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.db
+*.db-shm
+*.db-wal
+*.log
+.env*
+client_secret*.json

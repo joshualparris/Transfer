@@ -1,0 +1,2 @@
+import { contextBridge, ipcRenderer } from 'electron';
+contextBridge.exposeInMainWorld('lifeboat',{dashboard:()=>ipcRenderer.invoke('dashboard'),pickClient:()=>ipcRenderer.invoke('pick-client'),connect:(role:'source'|'destination')=>ipcRenderer.invoke('connect',role),disconnect:(role:'source'|'destination')=>ipcRenderer.invoke('disconnect',role),saveSettings:(v:unknown)=>ipcRenderer.invoke('save-settings',v),runInventory:()=>ipcRenderer.invoke('run-inventory'),exportReports:()=>ipcRenderer.invoke('export-reports')});
