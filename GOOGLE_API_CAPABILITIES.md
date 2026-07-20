@@ -10,6 +10,7 @@ Verified against official Google documentation on 20 July 2026. This is a design
 | Gmail | Forwarding | Administrator-dependent | Address verification and Workspace admin settings can block completion. |
 | Drive | Enumerate and download accessible files | Supported | Shared drives need explicit corpus handling; inaccessible items remain reportable only. |
 | Drive | Export Google-native files | Supported with limitations | `files.export` has a 10 MB exported-content limit; mappings vary by editor type. |
+| Drive | Back up to local/NAS with rclone | Supported with limitations | `rclone copy` is resumable and non-destructive; downloaded verification is strong for ordinary files, while converted native files require explicit limitation reporting. |
 | Drive | Transfer Workspace ownership to consumer Gmail | Not supported | Export/re-upload loses revisions, comments, permissions and some native features. |
 | People | Read normal contacts/groups | Supported | Source uses read-only scopes. |
 | People | Read “Other contacts” | Supported with limitations | Fewer fields; first full-sync page has fixed quota; sync tokens expire after seven days. |

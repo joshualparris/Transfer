@@ -9,3 +9,5 @@
 7. Phase 7 — cross-module final safety gate, packaging hardening and live-account acceptance tests.
 
 Each phase must pass lint, type checking, automated tests, packaged build smoke testing, README/CHANGELOG updates and an actual workflow review. Unsupported work remains visibly unavailable rather than being represented by fake controls.
+
+Status: Phase 2 Drive-to-NAS backup, verification, native export policy and shared audit are implemented. Gmail migration remains Phase 3.

@@ -5,3 +5,5 @@
 Allowed states: `discovered`, `queued`, `copying`, `copied`, `verifying`, `verified`, `skipped`, `manual-action-required`, `failed-retryable`, `failed-permanent`.
 
 Crash recovery changes stale `copying` to `failed-retryable` and stale `verifying` to `copied`; source IDs remain the idempotency anchor.
+
+Phase 2 adds `drive_manifest` for source IDs, resolved paths, ownership, checksums, export policy and capabilities; `backup_jobs` for copy/verification history and persisted progress; and redacted `backup_logs`. Startup marks active jobs interrupted. Destination locking prevents conflicting work.

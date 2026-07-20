@@ -1,8 +1,19 @@
 # Cornerstone Lifeboat
 
-A local-first Electron migration cockpit for `joshua.parris@cornerstone.edu.au` to `joshualparris@gmail.com`, with `joshparriscornerstone@gmail.com` as the approved fallback. Phase 1 is implemented: secure account setup, persistent SQLite state, real read-only inventory for Gmail/Drive/Contacts/Calendar, crash-recoverable queue primitives, and JSON/CSV/HTML reports.
+A local-first Electron migration cockpit for `joshua.parris@cornerstone.edu.au` to `joshualparris@gmail.com`, with `joshparriscornerstone@gmail.com` as the approved fallback. Phase 2 adds a real, managed and resumable Google Drive-to-local/NAS backup using `rclone copy`, non-destructive verification, a persistent Drive manifest, and a shared-with-me audit.
 
-Later copy modules are deliberately unavailable until their idempotent copy and verification paths exist. No source deletion code exists. Dry-run is on by default.
+Gmail copy remains Phase 3. No source deletion or `rclone sync` operation exists.
+
+## Drive backup first run
+
+1. Install [rclone](https://rclone.org/install/) and run `rclone config`.
+2. Create a Drive remote for the Cornerstone account, such as `cornerstone-source`. Never share or back up the rclone config; it contains credentials. It is normally `%APPDATA%\rclone\rclone.conf` on Windows or `~/.config/rclone/rclone.conf` on Linux.
+3. Connect the source identity and run **Inventory → Build Drive manifest**.
+4. In **Drive setup**, detect rclone, select the remote, and choose local/NAS storage. `Z:\Cornerstone Account Backup` and `\\10.245.173.111\Download\Cornerstone Account Backup` are supported.
+5. Start the confirmed backup. Pause stops cleanly; starting again resumes through rclone's copy comparison without nested backup roots.
+6. Run **Verification**, review **Shared items**, and export the evidence bundle.
+
+Native export policy: Docs → DOCX, Sheets → XLSX, Slides → PPTX, Drawings → PDF. Revisions, comments, suggestions, permissions, linked Forms behavior, Apps Script bindings and some native features are not preserved.
 
 ## Run
 
