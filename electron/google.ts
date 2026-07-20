@@ -65,12 +65,15 @@ export async function authenticate(
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve());
+    server.listen(0, "localhost", () => resolve());
   });
   const addr = server.address();
   if (!addr || typeof addr === "string")
     throw new Error("Could not start local OAuth callback");
-  const redirect = `http://127.0.0.1:${addr.port}/oauth2callback`;
+  // Google desktop clients are issued with http://localhost as their loopback
+  // redirect. The ephemeral port is permitted; keep the registered host/path
+  // instead of changing it to 127.0.0.1, which some projects reject.
+  const redirect = `http://localhost:${addr.port}`;
   const oauth = new google.auth.OAuth2(
     cfg.client_id,
     cfg.client_secret,
@@ -86,7 +89,7 @@ export async function authenticate(
     server.on("request", (req, res) => {
       try {
         const u = new URL(req.url ?? "", redirect);
-        if (u.pathname != "/oauth2callback") return;
+        if (u.pathname !== "/") return;
         if (u.searchParams.get("state") !== state)
           throw new Error("OAuth state mismatch");
         const code = u.searchParams.get("code");
@@ -145,12 +148,12 @@ export async function authorizeFeature(
     server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(0, "localhost", resolve);
   });
   const addr = server.address();
   if (!addr || typeof addr === "string")
     throw new Error("Could not start OAuth callback");
-  const redirect = `http://127.0.0.1:${addr.port}/oauth2callback`,
+  const redirect = `http://localhost:${addr.port}`,
     oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect),
     state = randomUUID(),
     codePromise = new Promise<string>((resolve, reject) => {
@@ -161,6 +164,7 @@ export async function authorizeFeature(
       server.on("request", (req, res) => {
         try {
           const u = new URL(req.url ?? "", redirect);
+          if (u.pathname !== "/") return;
           if (u.searchParams.get("state") !== state)
             throw new Error("OAuth state mismatch");
           const code = u.searchParams.get("code");
