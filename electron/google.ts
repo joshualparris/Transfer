@@ -218,7 +218,7 @@ export async function authFor(role: AccountRole) {
   return auth;
 }
 
-export async function inventory(email: string): Promise<InventorySnapshot> {
+export async function inventory(email: string,onProgress?:(event:{module:string;message:string;counts?:Record<string,number>;done?:boolean;error?:boolean})=>void): Promise<InventorySnapshot> {
   const auth = await authFor("source"),
     errors: InventorySnapshot["errors"] = [];
   const snap: InventorySnapshot = {
@@ -247,7 +247,9 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
     },
     errors,
   };
+  onProgress?.({module:'inventory',message:'Starting read-only source inventory'});
   try {
+    onProgress?.({module:'gmail',message:'Reading mailbox totals and labels'});
     const api = google.gmail({ version: "v1", auth });
     const profile = await api.users.getProfile({ userId: "me" });
     snap.gmail.messages = profile.data.messagesTotal ?? 0;
@@ -262,11 +264,15 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
         messages: full.data.messagesTotal ?? 0,
         threads: full.data.threadsTotal ?? 0,
       });
+      onProgress?.({module:'gmail',message:'Reading Gmail labels',counts:{labels:snap.gmail.labels.length,messages:snap.gmail.messages}});
     }
+    onProgress?.({module:'gmail',message:'Gmail inventory complete',counts:{messages:snap.gmail.messages,threads:snap.gmail.threads,labels:snap.gmail.labels.length},done:true});
   } catch (e) {
     errors.push({ module: "gmail", message: redact(e) });
+    onProgress?.({module:'gmail',message:redact(e),error:true,done:true});
   }
   try {
+    onProgress?.({module:'drive',message:'Reading Drive metadata (no files are downloaded)'});
     const api = google.drive({ version: "v3", auth });
     const about = await api.about.get({ fields: "storageQuota" });
     snap.drive.usageBytes = Number(about.data.storageQuota?.usage ?? 0);
@@ -296,11 +302,15 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
         snap.drive.bytes += Number(f.size ?? 0);
       }
       pageToken = r.data.nextPageToken ?? undefined;
+      onProgress?.({module:'drive',message:'Reading Drive pages',counts:{files:snap.drive.files,folders:snap.drive.folders}});
     } while (pageToken);
+    onProgress?.({module:'drive',message:'Drive inventory complete',counts:{files:snap.drive.files,folders:snap.drive.folders},done:true});
   } catch (e) {
     errors.push({ module: "drive", message: redact(e) });
+    onProgress?.({module:'drive',message:redact(e),error:true,done:true});
   }
   try {
+    onProgress?.({module:'contacts',message:'Reading personal-contact counts and groups'});
     const api = google.people({ version: "v1", auth });
     let pageToken: string | undefined;
     do {
@@ -312,6 +322,7 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
       });
       snap.contacts.contacts += (r.data.connections ?? []).length;
       pageToken = r.data.nextPageToken ?? undefined;
+      onProgress?.({module:'contacts',message:'Reading Contacts pages',counts:{contacts:snap.contacts.contacts}});
     } while (pageToken);
     const groups = await api.contactGroups.list({ pageSize: 1000 });
     snap.contacts.groups =
@@ -322,10 +333,13 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
     });
     snap.contacts.otherContacts =
       other.data.totalSize ?? (other.data.otherContacts ?? []).length;
+    onProgress?.({module:'contacts',message:'Contacts inventory complete',counts:{contacts:snap.contacts.contacts,groups:snap.contacts.groups,otherContacts:snap.contacts.otherContacts??0},done:true});
   } catch (e) {
     errors.push({ module: "contacts", message: redact(e) });
+    onProgress?.({module:'contacts',message:redact(e),error:true,done:true});
   }
   try {
+    onProgress?.({module:'calendar',message:'Reading calendars and event counts'});
     const api = google.calendar({ version: "v3", auth });
     let token: string | undefined;
     const ids: string[] = [];
@@ -342,6 +356,7 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
         else snap.calendar.shared++;
       }
       token = r.data.nextPageToken ?? undefined;
+      onProgress?.({module:'calendar',message:'Reading calendar list',counts:{calendars:snap.calendar.calendars}});
     } while (token);
     for (const id of ids) {
       let p: string | undefined;
@@ -360,10 +375,14 @@ export async function inventory(email: string): Promise<InventorySnapshot> {
           if (start && new Date(start) >= new Date()) snap.calendar.future++;
         }
         p = r.data.nextPageToken ?? undefined;
+        onProgress?.({module:'calendar',message:'Reading calendar event pages',counts:{calendars:snap.calendar.calendars,events:snap.calendar.events,recurring:snap.calendar.recurring}});
       } while (p);
     }
+    onProgress?.({module:'calendar',message:'Calendar inventory complete',counts:{calendars:snap.calendar.calendars,events:snap.calendar.events,recurring:snap.calendar.recurring},done:true});
   } catch (e) {
     errors.push({ module: "calendar", message: redact(e) });
+    onProgress?.({module:'calendar',message:redact(e),error:true,done:true});
   }
+  onProgress?.({module:'inventory',message:`Inventory finished with ${errors.length} module warning${errors.length===1?'':'s'}`,counts:{warnings:errors.length},done:true});
   return snap;
 }

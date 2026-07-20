@@ -40,6 +40,9 @@ let win: BrowserWindow | null = null,
   clientPath = "",
   activeJob: string | null = null,
   progress: any = {},
+  inventoryProgress: any = {},
+  inventoryLogs: any[] = [],
+  inventoryRunning = false,
   gmailProgress: any = {},
   gmailRun: string | null = null;
 const runner = new RcloneProcess(),
@@ -63,6 +66,7 @@ function dashboard() {
     settings: db.setting("settings", defaults),
     accounts: db.accounts(),
     latestInventory: db.latestInventory(),
+    inventory:{running:inventoryRunning,progress:inventoryProgress,logs:inventoryLogs.slice(-250)},
     queue: db.queueCounts(),
     drive: {
       config: db.setting("driveConfig", {}),
@@ -178,9 +182,9 @@ ipcMain.handle("save-settings", (_e, v) => {
 ipcMain.handle("run-inventory", async () => {
   const source = db.accounts().find((a) => a.role === "source");
   if (!source) throw new Error("Connect the source account first");
-  const snap = await inventory(source.email);
-  db.saveInventory(snap);
-  return dashboard();
+  if(inventoryRunning)throw new Error('Account inventory is already running');
+  inventoryRunning=true;inventoryLogs=[];inventoryProgress={module:'inventory',message:'Starting'};
+  try{const snap = await inventory(source.email,(event)=>{const entry={at:new Date().toISOString(),...event};inventoryProgress=entry;inventoryLogs.push(entry);win?.webContents.send('inventory-progress',entry)});db.saveInventory(snap);return dashboard()}finally{inventoryRunning=false;win?.webContents.send('inventory-progress',{at:new Date().toISOString(),module:'inventory',message:'Ready'})}
 });
 ipcMain.handle("export-reports", async () => {
   const snap = db.latestInventory();

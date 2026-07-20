@@ -24,7 +24,8 @@ export default function App() {
     load().catch((e) => setError(e.message));
     const offDrive = window.lifeboat.onDriveProgress(() => load());
     const offGmail = window.lifeboat.onGmailProgress(() => load());
-    return () => { offDrive(); offGmail(); };
+    const offInventory = window.lifeboat.onInventoryProgress(() => load());
+    return () => { offDrive(); offGmail(); offInventory(); };
   }, []);
   const act = async (label: string, fn: () => Promise<any>) => {
     setBusy(label);
@@ -111,7 +112,7 @@ export default function App() {
           <Accounts data={data} busy={busy} act={act} />
         )}{" "}
         {active === "Inventory" && (
-          <Inventory inv={inv} busy={busy} source={!!source} act={act} />
+          <Inventory data={data} inv={inv} busy={busy} source={!!source} act={act} />
         )}{" "}
         {active === "Drive setup" && (
           <DriveSetup data={data} busy={busy} act={act} />
@@ -287,11 +288,13 @@ function Accounts({
   );
 }
 function Inventory({
+  data,
   inv,
   busy,
   source,
   act,
 }: {
+  data: DashboardData;
   inv: DashboardData["latestInventory"];
   busy: string;
   source: boolean;
@@ -323,6 +326,7 @@ function Inventory({
           </button>
         </div>
       </section>
+      {(data.inventory.running||data.inventory.logs.length>0)&&<section className="panel"><h2>{data.inventory.running?'Inventory running':'Inventory activity'}</h2><p>{data.inventory.progress?.message??'Preparing'} {data.inventory.progress?.counts?`— ${Object.entries(data.inventory.progress.counts).map(([k,v])=>`${k}: ${fmt(Number(v))}`).join(' · ')}`:''}</p><pre className="activitylog">{data.inventory.logs.map(x=>`${new Date(x.at).toLocaleTimeString()}  ${x.error?'ERROR':'INFO '}  [${x.module}] ${x.message}${x.counts?' — '+Object.entries(x.counts).map(([k,v])=>`${k}=${v}`).join(', '):''}`).join('\n')}</pre><p className="muted">Sensitive content and OAuth credentials are deliberately excluded from logs.</p></section>}
       {inv && (
         <div className="inventorygrid">
           <Module
