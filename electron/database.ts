@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS other_contacts_manifest(id TEXT PRIMARY KEY,run_id TE
     this.db.exec(`CREATE TABLE IF NOT EXISTS calendar_runs_v2(id TEXT PRIMARY KEY,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,completed_at TEXT,last_error TEXT);
 CREATE TABLE IF NOT EXISTS calendar_map_v2(source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_calendar_id TEXT NOT NULL,source_name TEXT NOT NULL,destination_calendar_id TEXT,status TEXT NOT NULL,PRIMARY KEY(source_subject,destination_subject,source_calendar_id));
 CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_calendar_id TEXT NOT NULL,source_event_id TEXT NOT NULL,destination_calendar_id TEXT,destination_event_id TEXT,ical_uid TEXT,summary_hash TEXT,start_json TEXT NOT NULL,end_json TEXT NOT NULL,recurrence_json TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,verification_status TEXT,UNIQUE(source_subject,destination_subject,source_calendar_id,source_event_id));CREATE INDEX IF NOT EXISTS idx_calendar_events_v2_status ON calendar_events_v2(status);`);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS operation_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,module TEXT NOT NULL,level TEXT NOT NULL,message TEXT NOT NULL,details_json TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(created_at DESC);CREATE INDEX IF NOT EXISTS idx_operation_logs_module ON operation_logs(module,created_at DESC);`);
   }
   private ensureColumns() {
     try {
@@ -556,6 +557,20 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
         "INSERT INTO gmail_logs(run_id,created_at,event,details_json) VALUES(?,?,?,?)",
       )
       .run(runId, new Date().toISOString(), event, JSON.stringify(details));
+  }
+  activityLog(module:string,level:string,message:string,details:unknown={}){
+    this.db.prepare("INSERT INTO operation_logs(created_at,module,level,message,details_json) VALUES(?,?,?,?,?)").run(new Date().toISOString(),module,level,message.slice(0,1000),JSON.stringify(details));
+    this.db.prepare("DELETE FROM operation_logs WHERE id NOT IN (SELECT id FROM operation_logs ORDER BY id DESC LIMIT 20000)").run();
+  }
+  activityLogs(limit=1000){
+    const own=this.db.prepare("SELECT created_at,module,level,message,details_json details FROM operation_logs ORDER BY id DESC LIMIT ?").all(limit) as any[];
+    const drive=this.db.prepare("SELECT created_at,'rclone' module,CASE WHEN line LIKE '%ERROR%' OR line LIKE '%Failed%' THEN 'error' ELSE 'info' END level,line message,'{}' details FROM backup_logs ORDER BY id DESC LIMIT ?").all(Math.min(limit,500)) as any[];
+    const gmail=this.db.prepare("SELECT created_at,'gmail' module,'info' level,event message,details_json details FROM gmail_logs ORDER BY id DESC LIMIT ?").all(Math.min(limit,500)) as any[];
+    return [...own,...drive,...gmail].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,limit);
+  }
+  failureDiagnostics(){
+    const queries=[["gmail","SELECT COALESCE(last_error_code,'unknown') code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM gmail_messages WHERE status LIKE 'failed%' GROUP BY last_error_code,last_error ORDER BY count DESC LIMIT 20"],["contacts","SELECT status code,COALESCE(redacted_last_error,'Review or duplicate decision required') message,count(*) count FROM contacts_manifest WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,redacted_last_error ORDER BY count DESC LIMIT 20"],["calendar","SELECT status code,COALESCE(last_error,'Verification or retry required') message,count(*) count FROM calendar_events_v2 WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,last_error ORDER BY count DESC LIMIT 20"],["drive","SELECT status code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM backup_jobs WHERE status IN ('failed','interrupted') GROUP BY status,last_error ORDER BY count DESC LIMIT 20"]] as const;
+    return queries.flatMap(([module,sql])=>(this.db.prepare(sql).all() as any[]).map(x=>({module,...x,message:String(x.message).slice(0,500)})));
   }
   phaseRun(sql:string,...args:any[]){return this.db.prepare(sql).run(...args)}
   phaseGet(sql:string,...args:any[]){return this.db.prepare(sql).get(...args) as any}

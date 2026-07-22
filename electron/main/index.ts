@@ -5,7 +5,7 @@ import { LifeboatDatabase } from "../database";
 import { authenticate, inventory, authFor } from "../google";
 import { tokens } from "../keychain";
 import { exportReports } from "../report";
-import { validateAccountRoles } from "../security";
+import { redact, validateAccountRoles } from "../security";
 import {
   copyArgs,
   findRclone,
@@ -70,6 +70,14 @@ const defaults = {
   destinationEmail: "joshualparris@gmail.com",
   fallbackEmail: "joshparriscornerstone@gmail.com",
 };
+const activityClock=new Map<string,number>();
+function recordActivity(module:string,value:any,level='info'){
+  const now=Date.now(),urgent=level!=='info'||value?.done||value?.error;
+  if(!urgent&&now-(activityClock.get(module)??0)<1000)return;
+  activityClock.set(module,now);
+  const message=String(value?.message??value?.operation??value?.current??'Working');
+  db.activityLog(module,level,redact(message),{progress:redact(JSON.stringify(value??{}))});
+}
 function dashboard() {
   return {
     settings: db.setting("settings", defaults),
@@ -100,6 +108,7 @@ function dashboard() {
     contacts:{stats:contactStats(db),running:contactsRunning,progress:contactsProgress,config:db.setting('contactsConfig',{otherPolicy:'archive'})},
     calendar:{stats:calendarStats(db),running:calendarRunning,progress:calendarProgress},
     preservation:{running:preservationRunning,progress:preservationProgress,result:db.setting('takeoutResult',null)},
+    activity:{logs:db.activityLogs(1500),diagnostics:db.failureDiagnostics(),modules:{inventory:{running:inventoryRunning,progress:inventoryProgress},drive:{running:runner.running(),progress},gmail:{running:!!gmailRun,progress:gmailProgress},contacts:{running:contactsRunning,progress:contactsProgress},calendar:{running:calendarRunning,progress:calendarProgress},preservation:{running:preservationRunning,progress:preservationProgress}}},
   };
 }
 function createWindow() {
@@ -196,7 +205,7 @@ ipcMain.handle("run-inventory", async () => {
   if (!source) throw new Error("Connect the source account first");
   if(inventoryRunning)throw new Error('Account inventory is already running');
   inventoryRunning=true;inventoryCancelled=false;inventoryLogs=[];inventoryProgress={module:'inventory',message:'Starting'};
-  try{const snap = await inventory(source.email,(event)=>{const entry={at:new Date().toISOString(),...event};inventoryProgress=entry;inventoryLogs.push(entry);win?.webContents.send('inventory-progress',entry)},()=>inventoryCancelled);if(!inventoryCancelled)db.saveInventory(snap);return dashboard()}finally{inventoryRunning=false;win?.webContents.send('inventory-progress',{at:new Date().toISOString(),module:'inventory',message:inventoryCancelled?'Cancelled':'Ready'})}
+  try{const snap = await inventory(source.email,(event)=>{const entry={at:new Date().toISOString(),...event};inventoryProgress=entry;inventoryLogs.push(entry);recordActivity(event.module??'inventory',entry,event.error?'error':'info');win?.webContents.send('inventory-progress',entry)},()=>inventoryCancelled);if(!inventoryCancelled)db.saveInventory(snap);return dashboard()}finally{inventoryRunning=false;const entry={at:new Date().toISOString(),module:'inventory',message:inventoryCancelled?'Cancelled':'Inventory finished',done:true};recordActivity('inventory',entry);win?.webContents.send('inventory-progress',entry)}
 });
 ipcMain.handle('cancel-inventory',()=>{inventoryCancelled=true;return dashboard()});
 ipcMain.handle("export-reports", async () => {
@@ -358,11 +367,11 @@ ipcMain.handle(
   },
 );
 ipcMain.handle('calendar-authorize',async()=>{const p=clientPath||db.setting('clientPath','');if(!p)throw new Error('Select client_secret.json first');const existing=db.accounts().find(a=>a.role==='destination');if(!existing)throw new Error('Connect destination first');const acct=await authorizeFeature('destination',p,CALENDAR_DESTINATION_SCOPES);if(acct.subject!==existing.subject||acct.email!==existing.email)throw new Error(`Authorised ${acct.email}, expected ${existing.email}`);db.saveAccount({...acct,scopes:[...new Set([...existing.scopes,...acct.scopes])]});return dashboard()});
-ipcMain.handle('calendar-discover',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();calendarRunning=true;try{await inventoryCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;win?.webContents.send('calendar-progress',p)});return dashboard()}finally{calendarRunning=false}});
-ipcMain.handle('calendar-start',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/calendar.app.created'))throw new Error('Authorise destination Calendar access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination calendars'],defaultId:0,cancelId:0,message:`Copy calendars ${source.email} → ${destination.email}`,detail:'New prefixed calendars and events will be created. Source calendars remain read-only. Nothing is deleted.'});if(confirm.response!==1)return dashboard();calendarRunning=true;try{await runCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;win?.webContents.send('calendar-progress',p)});return dashboard()}finally{calendarRunning=false}});
+ipcMain.handle('calendar-discover',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();calendarRunning=true;recordActivity('calendar',{operation:'Starting Calendar inventory'});try{await inventoryCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;recordActivity('calendar',p);win?.webContents.send('calendar-progress',p)});recordActivity('calendar',{operation:'Calendar inventory finished',done:true});return dashboard()}catch(e){recordActivity('calendar',{message:redact(e)},'error');throw e}finally{calendarRunning=false}});
+ipcMain.handle('calendar-start',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/calendar.app.created'))throw new Error('Authorise destination Calendar access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination calendars'],defaultId:0,cancelId:0,message:`Copy calendars ${source.email} → ${destination.email}`,detail:'New prefixed calendars and events will be created. Source calendars remain read-only. Nothing is deleted.'});if(confirm.response!==1)return dashboard();calendarRunning=true;recordActivity('calendar',{operation:'Starting Calendar migration'});try{await runCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;recordActivity('calendar',p);win?.webContents.send('calendar-progress',p)});recordActivity('calendar',{operation:'Calendar migration finished',done:true});return dashboard()}catch(e){recordActivity('calendar',{message:redact(e)},'error');throw e}finally{calendarRunning=false}});
 ipcMain.handle('calendar-export',async()=>{const r=await dialog.showOpenDialog(win!,{title:'Choose Calendar backup folder',properties:['openDirectory','createDirectory']});if(r.canceled)return null;return exportCalendars(r.filePaths[0])});
 ipcMain.handle('calendar-verify-destination',async()=>{const{source,destination}=gmailAccounts();calendarProgress={operation:'Destination-only Calendar verification',...await verifyCalendarsDestinationOnly(db,source.subject!,destination.subject!)};return dashboard()});
-ipcMain.handle('takeout-scan',async()=>{const source=await dialog.showOpenDialog(win!,{title:'Choose extracted Google Takeout folder',properties:['openDirectory']});if(source.canceled)return dashboard();const output=await dialog.showOpenDialog(win!,{title:'Choose a separate folder for checksum evidence',properties:['openDirectory','createDirectory']});if(output.canceled)return dashboard();preservationRunning=true;try{const result=await scanTakeout(source.filePaths[0],output.filePaths[0],p=>{preservationProgress=p;win?.webContents.send('preservation-progress',p)});db.setSetting('takeoutResult',result);return dashboard()}finally{preservationRunning=false}});
+ipcMain.handle('takeout-scan',async()=>{const source=await dialog.showOpenDialog(win!,{title:'Choose extracted Google Takeout folder',properties:['openDirectory']});if(source.canceled)return dashboard();const output=await dialog.showOpenDialog(win!,{title:'Choose a separate folder for checksum evidence',properties:['openDirectory','createDirectory']});if(output.canceled)return dashboard();preservationRunning=true;recordActivity('preservation',{operation:'Starting Takeout checksum scan'});try{const result=await scanTakeout(source.filePaths[0],output.filePaths[0],p=>{preservationProgress=p;recordActivity('preservation',p);win?.webContents.send('preservation-progress',p)});db.setSetting('takeoutResult',result);recordActivity('preservation',{operation:'Takeout checksum scan finished',...result,done:true});return dashboard()}catch(e){recordActivity('preservation',{message:redact(e)},'error');throw e}finally{preservationRunning=false}});
 ipcMain.handle("drive-pause", () => {
   if (!activeJob) return dashboard();
   runner.pause();
@@ -473,8 +482,8 @@ function gmailAccounts() {
   return { source, destination };
 }
 ipcMain.handle('contacts-authorize',async()=>{const p=clientPath||db.setting('clientPath','');if(!p)throw new Error('Select client_secret.json first');const existing=db.accounts().find(a=>a.role==='destination');if(!existing)throw new Error('Connect destination first');const acct=await authorizeFeature('destination',p,CONTACTS_COPY_SCOPES);if(acct.subject!==existing.subject||acct.email!==existing.email)throw new Error(`Authorised ${acct.email}, expected ${existing.email}`);db.saveAccount({...acct,scopes:[...new Set([...existing.scopes,...acct.scopes])]});return dashboard()});
-ipcMain.handle('contacts-discover',async(_e,input:{otherPolicy:string})=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();contactsRunning=true;db.setSetting('contactsConfig',{otherPolicy:input.otherPolicy});try{await inventoryContacts(db,{sourceSubject:source.subject!,sourceEmail:source.email,destinationSubject:destination.subject!,destinationEmail:destination.email,otherPolicy:input.otherPolicy},p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
-ipcMain.handle('contacts-start',async()=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/contacts'))throw new Error('Authorise destination Contacts access first');const count=contactStats(db).discovered??0,confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination contacts'],defaultId:0,cancelId:0,title:'Confirm Contacts migration',message:`Copy ${source.email} → ${destination.email}`,detail:`Selected personal contacts: ${count}\nSource remains read-only. Existing destination contacts are never merged or deleted. Ambiguous matches require review.`});if(confirm.response!==1)return dashboard();contactsRunning=true;try{await runContacts(db,source.subject!,destination.subject!,p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
+ipcMain.handle('contacts-discover',async(_e,input:{otherPolicy:string})=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();contactsRunning=true;db.setSetting('contactsConfig',{otherPolicy:input.otherPolicy});recordActivity('contacts',{operation:'Starting Contacts inventory'});try{await inventoryContacts(db,{sourceSubject:source.subject!,sourceEmail:source.email,destinationSubject:destination.subject!,destinationEmail:destination.email,otherPolicy:input.otherPolicy},p=>{contactsProgress=p;recordActivity('contacts',p);win?.webContents.send('contacts-progress',p)});recordActivity('contacts',{operation:'Contacts inventory finished',done:true});return dashboard()}catch(e){recordActivity('contacts',{message:redact(e)},'error');throw e}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
+ipcMain.handle('contacts-start',async()=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/contacts'))throw new Error('Authorise destination Contacts access first');const count=contactStats(db).discovered??0,confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination contacts'],defaultId:0,cancelId:0,title:'Confirm Contacts migration',message:`Copy ${source.email} → ${destination.email}`,detail:`Selected personal contacts: ${count}\nSource remains read-only. Existing destination contacts are never merged or deleted. Ambiguous matches require review.`});if(confirm.response!==1)return dashboard();contactsRunning=true;recordActivity('contacts',{operation:'Starting Contacts migration'});try{await runContacts(db,source.subject!,destination.subject!,p=>{contactsProgress=p;recordActivity('contacts',p);win?.webContents.send('contacts-progress',p)});recordActivity('contacts',{operation:'Contacts migration finished',done:true});return dashboard()}catch(e){recordActivity('contacts',{message:redact(e)},'error');throw e}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
 ipcMain.handle('contacts-export',async()=>{const r=await dialog.showOpenDialog(win!,{title:'Choose Contacts backup folder',properties:['openDirectory','createDirectory']});if(r.canceled)return null;return exportContacts(r.filePaths[0])});
 ipcMain.handle('contacts-convert-other',async()=>{const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/contacts'))throw new Error('Authorise destination Contacts access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Convert archived Other Contacts'],defaultId:0,cancelId:0,message:`Convert Other Contacts to ordinary contacts in ${destination.email}`,detail:'This is a conversion, not exact preservation. Existing or ambiguous matches will be skipped for review. Source Other Contacts are not changed.'});if(confirm.response!==1)return dashboard();contactsRunning=true;try{await convertOtherContacts(db,source.subject!,destination.subject!,p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false}});
 ipcMain.handle('contacts-verify-destination',async()=>{const{source,destination}=gmailAccounts();contactsProgress={operation:'Destination-only Contacts verification'};const result=await verifyContactsDestinationOnly(db,source.subject!,destination.subject!);contactsProgress={...contactsProgress,...result};return dashboard()});
@@ -548,12 +557,14 @@ ipcMain.handle("gmail-discover", async (_e, v) => {
       (p) => {
         gmailProgress = p;
         db.updateGmailRun(id, "running", p);
+        recordActivity('gmail',p);
         win?.webContents.send("gmail-progress", p);
       },
     );
     db.updateGmailRun(id, "complete", { ...result, dryRun: true });
     db.setSetting("gmailConfig", cfg);
   } catch (e) {
+    recordActivity('gmail',{message:redact(e)},'error');
     db.updateGmailRun(
       id,
       "failed",
@@ -612,6 +623,7 @@ ipcMain.handle("gmail-start", async (_e, v) => {
         },
         (p) => {
           gmailProgress = p;
+          recordActivity('gmail',p);
           win?.webContents.send("gmail-progress", p);
         },
       );
@@ -625,11 +637,13 @@ ipcMain.handle("gmail-start", async (_e, v) => {
         (p) => {
           gmailProgress = p;
           db.updateGmailRun(id, "running", p);
+          recordActivity('gmail',p);
           win?.webContents.send("gmail-progress", p);
         },
       );
       if(result.paused)db.updateGmailRun(id,"paused",result.stats);else{const verification=await verifyGmailAggregate(db,source.subject!,destination.subject!);db.updateGmailRun(id,verification.status,{...result.stats,verification})}
     } catch (e) {
+      recordActivity('gmail',{message:redact(e)},'error');
       db.updateGmailRun(
         id,
         "failed",

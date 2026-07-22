@@ -13,9 +13,11 @@ import VerificationPage from "./components/pages/VerificationPage";
 import ContactsPage from "./components/pages/ContactsPage";
 import CalendarPage from "./components/pages/CalendarPage";
 import PreservationPage from "./components/pages/PreservationPage";
+import ActivityPage from "./components/pages/ActivityPage";
 
 const nav = [
   "Overview",
+  "Activity & logs",
   "Accounts",
   "Inventory",
   "Drive setup",
@@ -99,6 +101,7 @@ export default function App() {
         actionState={actionState}
       />
     ),
+    "Activity & logs": <ActivityPage data={data} />,
     Accounts: <AccountsPage data={data} busy={anyBusy} act={act} />,
     Inventory: <InventoryPage data={data} inv={data.latestInventory} busy={inventoryBusy} source={source} act={act} />,
     "Drive setup": <DriveSetupPage data={data} busy={driveBusy} act={act} />,
