@@ -89,11 +89,6 @@ describe("reports", () => {
     };
     await exportReports(d, s, []);
     const files = await (await import("node:fs/promises")).readdir(d);
-    expect(files.map((x) => path.extname(x)).sort()).toEqual([
-      ".csv",
-      ".html",
-      ".json",
-      ".json",
-    ]);
+    expect(files.map((x) => path.extname(x)).sort()).toEqual([".csv", ".html", ".json", ".json"]);
   });
 });

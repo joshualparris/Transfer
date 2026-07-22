@@ -43,9 +43,15 @@ export const GMAIL_COPY_SCOPES = [
   "https://www.googleapis.com/auth/gmail.labels",
   "https://www.googleapis.com/auth/gmail.compose",
 ];
+export const GMAIL_SOURCE_READ_SCOPES = [
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/gmail.readonly",
+];
 export const GMAIL_SETTINGS_SCOPES = [
   "openid",
   "email",
+  "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.settings.basic",
 ];
 export const CONTACTS_COPY_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/contacts"];
@@ -202,7 +208,7 @@ export async function assertGrantedScopes(role: AccountRole, required: string[])
   );
   if (missing.length)
     throw new Error(
-      `The ${role} account is missing required Google permissions. Authorise destination Calendar again before starting.`,
+      `The ${role} account is missing required Google permission(s): ${missing.join(", ")}. Re-authorise that account before starting.`,
     );
   return granted;
 }

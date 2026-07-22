@@ -24,6 +24,7 @@ import { aggregateVerification, validateSample } from "../verification";
 import {
   authorizeFeature,
   GMAIL_COPY_SCOPES,
+  GMAIL_SOURCE_READ_SCOPES,
   GMAIL_SETTINGS_SCOPES,
   CONTACTS_COPY_SCOPES,
   CALENDAR_DESTINATION_SCOPES,
@@ -808,14 +809,18 @@ ipcMain.handle("contacts-verify-destination", async () => {
   contactsProgress = { ...contactsProgress, ...result };
   return dashboard();
 });
-ipcMain.handle("gmail-authorize", async (_e, feature: "copy" | "settings") => {
+ipcMain.handle("gmail-authorize", async (_e, feature: "copy" | "source-read" | "settings") => {
   const role = feature === "copy" ? "destination" : "source",
     p = clientPath || db.setting("clientPath", "");
   if (!p) throw new Error("Select client_secret.json first");
   const acct = await authorizeFeature(
       role,
       p,
-      feature === "copy" ? GMAIL_COPY_SCOPES : GMAIL_SETTINGS_SCOPES,
+      feature === "copy"
+        ? GMAIL_COPY_SCOPES
+        : feature === "source-read"
+          ? GMAIL_SOURCE_READ_SCOPES
+          : GMAIL_SETTINGS_SCOPES,
     ),
     existing = db.accounts().find((a) => a.role === role),
     set = dashboard().settings;
@@ -857,6 +862,7 @@ ipcMain.handle("gmail-save-config", (_e, v) => {
 ipcMain.handle("gmail-page", (_e, o = 0, l = 100) => db.gmailPage(o, l));
 ipcMain.handle("gmail-discover", async (_e, v) => {
   if (gmailRun) throw new Error("Gmail work is already running");
+  await assertGrantedScopes("source", GMAIL_SOURCE_READ_SCOPES);
   const cfg = gmailConfigSchema.parse(v),
     { source, destination } = gmailAccounts(),
     id = db.startGmailRun({
@@ -903,6 +909,7 @@ ipcMain.handle("gmail-start", async (_e, v) => {
   if (gmailRun) throw new Error("Gmail work is already running");
   const cfg = gmailConfigSchema.parse(v),
     { source, destination } = gmailAccounts();
+  await assertGrantedScopes("source", GMAIL_SOURCE_READ_SCOPES);
   await assertGrantedScopes("destination", GMAIL_COPY_SCOPES);
   const confirm = await dialog.showMessageBox(win!, {
     type: "warning",

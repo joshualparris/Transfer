@@ -25,6 +25,9 @@ export default function GmailPage({
   const copyGranted =
     destination?.scopes.includes("https://www.googleapis.com/auth/gmail.insert") &&
     destination?.scopes.includes("https://www.googleapis.com/auth/gmail.labels");
+  const sourceReadGranted = source?.scopes.includes(
+    "https://www.googleapis.com/auth/gmail.readonly",
+  );
   const settingsGranted = source?.scopes.includes(
     "https://www.googleapis.com/auth/gmail.settings.basic",
   );
@@ -47,6 +50,16 @@ export default function GmailPage({
           account IDs must differ.
         </p>
         <div className="actions">
+          <button
+            disabled={busy}
+            onClick={() =>
+              act("gmail-source-auth", () => window.lifeboat.authorizeGmail("source-read"))
+            }
+          >
+            {sourceReadGranted
+              ? "Re-authorise source mailbox reading"
+              : "Authorise source mailbox reading"}
+          </button>
           <button
             disabled={busy}
             onClick={() => act("gmail-auth", () => window.lifeboat.authorizeGmail("copy"))}

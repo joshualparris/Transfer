@@ -35,7 +35,7 @@ export interface LifeboatApi {
   pauseDrive: () => Promise<DashboardData>;
   verifyDrive: (value: DriveConfig) => Promise<DashboardData>;
   onDriveProgress: (fn: (progress: any) => void) => () => void;
-  authorizeGmail: (feature: "copy" | "settings") => Promise<DashboardData>;
+  authorizeGmail: (feature: "copy" | "source-read" | "settings") => Promise<DashboardData>;
   saveGmailConfig: (value: GmailConfig) => Promise<DashboardData>;
   pickGmailArchive: () => Promise<DashboardData>;
   discoverGmail: (value: GmailConfig) => Promise<DashboardData>;
