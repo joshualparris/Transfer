@@ -39,6 +39,13 @@ const lifeboat: LifeboatApi = {
   forwardingAudit: () => ipcRenderer.invoke("gmail-forwarding-audit"),
   updateVacation: (value) => ipcRenderer.invoke("gmail-vacation", value),
   onGmailProgress: (fn) => listen("gmail-progress", fn),
+  authorizeContacts:()=>ipcRenderer.invoke('contacts-authorize'),
+  discoverContacts:(value)=>ipcRenderer.invoke('contacts-discover',value),
+  startContacts:()=>ipcRenderer.invoke('contacts-start'),
+  exportContacts:()=>ipcRenderer.invoke('contacts-export'),
+  convertOtherContacts:()=>ipcRenderer.invoke('contacts-convert-other'),
+  verifyContactsDestinationOnly:()=>ipcRenderer.invoke('contacts-verify-destination'),
+  onContactsProgress:(fn)=>listen('contacts-progress',fn),
 };
 
 contextBridge.exposeInMainWorld("lifeboat", lifeboat);

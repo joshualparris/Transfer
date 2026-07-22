@@ -50,6 +50,7 @@ export const GMAIL_SETTINGS_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/gmail.settings.basic",
 ];
+export const CONTACTS_COPY_SCOPES = ["openid","email","https://www.googleapis.com/auth/contacts"];
 
 async function clientConfig(path: string) {
   const parsed = ClientFile.safeParse(JSON.parse(await readFile(path, "utf8")));

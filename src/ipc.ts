@@ -45,4 +45,11 @@ export interface LifeboatApi {
   forwardingAudit: () => Promise<any>;
   updateVacation: (value: { subject: string; body: string }) => Promise<any>;
   onGmailProgress: (fn: (progress: any) => void) => () => void;
+  authorizeContacts: () => Promise<DashboardData>;
+  discoverContacts: (value:{otherPolicy:string}) => Promise<DashboardData>;
+  startContacts: () => Promise<DashboardData>;
+  exportContacts: () => Promise<string|null>;
+  convertOtherContacts:()=>Promise<DashboardData>;
+  verifyContactsDestinationOnly:()=>Promise<DashboardData>;
+  onContactsProgress: (fn:(progress:any)=>void)=>()=>void;
 }

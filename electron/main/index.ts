@@ -25,7 +25,9 @@ import {
   authorizeFeature,
   GMAIL_COPY_SCOPES,
   GMAIL_SETTINGS_SCOPES,
+  CONTACTS_COPY_SCOPES,
 } from "../google";
+import{contactStats,convertOtherContacts,exportContacts,inventoryContacts,runContacts,verifyContactsDestinationOnly}from'../contacts';
 import {
   discoverGmail,
   ensureLabels,
@@ -46,6 +48,7 @@ let win: BrowserWindow | null = null,
   inventoryCancelled = false,
   gmailProgress: any = {},
   gmailRun: string | null = null;
+let contactsRunning=false,contactsProgress:any={};
 const runner = new RcloneProcess(),
   gmailRunner = new GmailRunner();
 const settingsSchema = z.object({
@@ -89,6 +92,7 @@ function dashboard() {
       running: !!gmailRun,
       progress: gmailProgress,
     },
+    contacts:{stats:contactStats(db),running:contactsRunning,progress:contactsProgress,config:db.setting('contactsConfig',{otherPolicy:'archive'})},
   };
 }
 function createWindow() {
@@ -107,7 +111,7 @@ function createWindow() {
   });
   if (process.env.VITE_DEV_SERVER_URL)
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
-  else win.loadFile(path.join(__dirname, "../../dist/index.html"));
+  else win.loadFile(path.join(__dirname, "../../../dist/index.html"));
 }
 app.whenReady().then(() => {
   db = new LifeboatDatabase(path.join(app.getPath("userData"), "lifeboat.db"));
@@ -450,6 +454,12 @@ function gmailAccounts() {
     );
   return { source, destination };
 }
+ipcMain.handle('contacts-authorize',async()=>{const p=clientPath||db.setting('clientPath','');if(!p)throw new Error('Select client_secret.json first');const existing=db.accounts().find(a=>a.role==='destination');if(!existing)throw new Error('Connect destination first');const acct=await authorizeFeature('destination',p,CONTACTS_COPY_SCOPES);if(acct.subject!==existing.subject||acct.email!==existing.email)throw new Error(`Authorised ${acct.email}, expected ${existing.email}`);db.saveAccount({...acct,scopes:[...new Set([...existing.scopes,...acct.scopes])]});return dashboard()});
+ipcMain.handle('contacts-discover',async(_e,input:{otherPolicy:string})=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();contactsRunning=true;db.setSetting('contactsConfig',{otherPolicy:input.otherPolicy});try{await inventoryContacts(db,{sourceSubject:source.subject!,sourceEmail:source.email,destinationSubject:destination.subject!,destinationEmail:destination.email,otherPolicy:input.otherPolicy},p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
+ipcMain.handle('contacts-start',async()=>{if(contactsRunning)throw new Error('Contacts work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/contacts'))throw new Error('Authorise destination Contacts access first');const count=contactStats(db).discovered??0,confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination contacts'],defaultId:0,cancelId:0,title:'Confirm Contacts migration',message:`Copy ${source.email} → ${destination.email}`,detail:`Selected personal contacts: ${count}\nSource remains read-only. Existing destination contacts are never merged or deleted. Ambiguous matches require review.`});if(confirm.response!==1)return dashboard();contactsRunning=true;try{await runContacts(db,source.subject!,destination.subject!,p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false;win?.webContents.send('contacts-progress',contactsProgress)}});
+ipcMain.handle('contacts-export',async()=>{const r=await dialog.showOpenDialog(win!,{title:'Choose Contacts backup folder',properties:['openDirectory','createDirectory']});if(r.canceled)return null;return exportContacts(r.filePaths[0])});
+ipcMain.handle('contacts-convert-other',async()=>{const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/contacts'))throw new Error('Authorise destination Contacts access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Convert archived Other Contacts'],defaultId:0,cancelId:0,message:`Convert Other Contacts to ordinary contacts in ${destination.email}`,detail:'This is a conversion, not exact preservation. Existing or ambiguous matches will be skipped for review. Source Other Contacts are not changed.'});if(confirm.response!==1)return dashboard();contactsRunning=true;try{await convertOtherContacts(db,source.subject!,destination.subject!,p=>{contactsProgress=p;win?.webContents.send('contacts-progress',p)});return dashboard()}finally{contactsRunning=false}});
+ipcMain.handle('contacts-verify-destination',async()=>{const{source,destination}=gmailAccounts();contactsProgress={operation:'Destination-only Contacts verification'};const result=await verifyContactsDestinationOnly(db,source.subject!,destination.subject!);contactsProgress={...contactsProgress,...result};return dashboard()});
 ipcMain.handle("gmail-authorize", async (_e, feature: "copy" | "settings") => {
   const role = feature === "copy" ? "destination" : "source",
     p = clientPath || db.setting("clientPath", "");
