@@ -216,6 +216,11 @@ ipcMain.handle("export-reports", async () => {
     ),
     gmail: dashboard().gmail,
     gmailManifest: db.gmailPage(0, 100000),
+    contacts: dashboard().contacts,
+    contactsManifest: db.phaseAll('SELECT source_type,status,verification_status,photo_present FROM contacts_manifest'),
+    calendar: dashboard().calendar,
+    calendarManifest: db.phaseAll('SELECT status,verification_status,recurrence_json FROM calendar_events'),
+    preservation: dashboard().preservation,
   } as any);
 });
 ipcMain.handle("rclone-detect", async () => {

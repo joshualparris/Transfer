@@ -4,6 +4,8 @@ A local-first Electron migration cockpit for `joshua.parris@cornerstone.edu.au` 
 
 Phase 3 adds Gmail copy and verification. No source deletion, Gmail send method, or `rclone sync` operation exists.
 
+Phase 4 adds resumable Contacts and Calendar migration with destination pairing, duplicate/review safeguards, destination-only verification, CSV/vCard and ICS backups. Photos and Keep use checksum-verified Google Takeout preservation because Google does not expose a faithful consumer-account copy API for those products.
+
 ## Gmail migration
 
 1. Reconnect both accounts after upgrading so Lifeboat records their stable Google account IDs.
@@ -58,4 +60,4 @@ The client file is only read, never modified. Its path is stored locally; refres
 
 The manifest database lives in Electron’s per-user app-data directory. It contains settings, verified emails, counts, queue IDs and redacted errors—never OAuth tokens, email bodies, contact records, or passwords. Protect exported reports because they contain account identifiers and metadata.
 
-Phase 1 performs no live writes. Automated tests cover account validation, queue idempotency/recovery, redaction and report generation. Live acceptance requires the user to initiate OAuth; no test contacts, messages, files, or events are created.
+Dry runs and inventories perform no live writes. Every copy module requires separate destination authorisation and a confirmation dialog. Automated tests cover account validation, queue idempotency/recovery, redaction, resumability helpers, recurrence and preservation tooling. Live writes remain user-triggered so test automation cannot create contacts, messages, files or events unexpectedly.
