@@ -15,7 +15,7 @@ try{
   const dashboard=await page.evaluate(()=>window.lifeboat.dashboard());
   assert.equal(dashboard.accounts.length,2,'source and destination must be connected');
   assert.notEqual(dashboard.accounts[0].subject,dashboard.accounts[1].subject,'stable account IDs must differ');
-  const expected=['Overview','Accounts','Inventory','Drive setup','Backup','Shared items','Verification','Gmail migration','Contacts migration','Security','Final report'];
+  const expected=['Overview','Accounts','Inventory','Drive setup','Backup','Shared items','Verification','Gmail migration','Contacts migration','Calendar migration','Security','Final report'];
   for(const name of expected){console.log(`screen: ${name}`);const nav=page.getByRole('button',{name,exact:true});await nav.evaluate(el=>el.click());await page.waitForTimeout(250);const h1=page.locator('main h1'),title=await h1.count()?await h1.textContent():null;if(title?.trim()!==name)throw new Error(`Navigation to ${name} failed; still on ${title}; renderer errors: ${errors.join(' | ')}`);await page.screenshot({path:path.join(out,`${name.toLowerCase().replaceAll(' ','-')}.png`),fullPage:false});}
   await page.getByRole('button',{name:'Inventory',exact:true}).click();
   if(process.env.LIFEBOAT_LIVE==='1'&&!dashboard.latestInventory){

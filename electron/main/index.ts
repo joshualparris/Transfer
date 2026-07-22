@@ -26,8 +26,10 @@ import {
   GMAIL_COPY_SCOPES,
   GMAIL_SETTINGS_SCOPES,
   CONTACTS_COPY_SCOPES,
+  CALENDAR_DESTINATION_SCOPES,
 } from "../google";
 import{contactStats,convertOtherContacts,exportContacts,inventoryContacts,runContacts,verifyContactsDestinationOnly}from'../contacts';
+import{calendarStats,exportCalendars,inventoryCalendars,runCalendars,verifyCalendarsDestinationOnly}from'../calendar';
 import {
   discoverGmail,
   ensureLabels,
@@ -49,6 +51,7 @@ let win: BrowserWindow | null = null,
   gmailProgress: any = {},
   gmailRun: string | null = null;
 let contactsRunning=false,contactsProgress:any={};
+let calendarRunning=false,calendarProgress:any={};
 const runner = new RcloneProcess(),
   gmailRunner = new GmailRunner();
 const settingsSchema = z.object({
@@ -93,6 +96,7 @@ function dashboard() {
       progress: gmailProgress,
     },
     contacts:{stats:contactStats(db),running:contactsRunning,progress:contactsProgress,config:db.setting('contactsConfig',{otherPolicy:'archive'})},
+    calendar:{stats:calendarStats(db),running:calendarRunning,progress:calendarProgress},
   };
 }
 function createWindow() {
@@ -345,6 +349,11 @@ ipcMain.handle(
     return dashboard();
   },
 );
+ipcMain.handle('calendar-authorize',async()=>{const p=clientPath||db.setting('clientPath','');if(!p)throw new Error('Select client_secret.json first');const existing=db.accounts().find(a=>a.role==='destination');if(!existing)throw new Error('Connect destination first');const acct=await authorizeFeature('destination',p,CALENDAR_DESTINATION_SCOPES);if(acct.subject!==existing.subject||acct.email!==existing.email)throw new Error(`Authorised ${acct.email}, expected ${existing.email}`);db.saveAccount({...acct,scopes:[...new Set([...existing.scopes,...acct.scopes])]});return dashboard()});
+ipcMain.handle('calendar-discover',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();calendarRunning=true;try{await inventoryCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;win?.webContents.send('calendar-progress',p)});return dashboard()}finally{calendarRunning=false}});
+ipcMain.handle('calendar-start',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/calendar.app.created'))throw new Error('Authorise destination Calendar access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination calendars'],defaultId:0,cancelId:0,message:`Copy calendars ${source.email} → ${destination.email}`,detail:'New prefixed calendars and events will be created. Source calendars remain read-only. Nothing is deleted.'});if(confirm.response!==1)return dashboard();calendarRunning=true;try{await runCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;win?.webContents.send('calendar-progress',p)});return dashboard()}finally{calendarRunning=false}});
+ipcMain.handle('calendar-export',async()=>{const r=await dialog.showOpenDialog(win!,{title:'Choose Calendar backup folder',properties:['openDirectory','createDirectory']});if(r.canceled)return null;return exportCalendars(r.filePaths[0])});
+ipcMain.handle('calendar-verify-destination',async()=>{const{source,destination}=gmailAccounts();calendarProgress={operation:'Destination-only Calendar verification',...await verifyCalendarsDestinationOnly(db,source.subject!,destination.subject!)};return dashboard()});
 ipcMain.handle("drive-pause", () => {
   if (!activeJob) return dashboard();
   runner.pause();

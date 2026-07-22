@@ -11,6 +11,7 @@ import SecurityPage from "./components/pages/SecurityPage";
 import SharedPage from "./components/pages/SharedPage";
 import VerificationPage from "./components/pages/VerificationPage";
 import ContactsPage from "./components/pages/ContactsPage";
+import CalendarPage from "./components/pages/CalendarPage";
 
 const nav = [
   "Overview",
@@ -22,6 +23,7 @@ const nav = [
   "Verification",
   "Gmail migration",
   "Contacts migration",
+  "Calendar migration",
   "Security",
   "Final report",
 ];
@@ -40,11 +42,13 @@ export default function App() {
     const offGmail = window.lifeboat.onGmailProgress(() => load());
     const offInventory = window.lifeboat.onInventoryProgress(() => load());
     const offContacts = window.lifeboat.onContactsProgress(() => load());
+    const offCalendar = window.lifeboat.onCalendarProgress(() => load());
     return () => {
       offDrive();
       offGmail();
       offInventory();
       offContacts();
+      offCalendar();
     };
   }, []);
 
@@ -91,6 +95,7 @@ export default function App() {
     Verification: <VerificationPage data={data} busy={isBusy} act={act} />,
     "Gmail migration": <GmailPage data={data} busy={isBusy} act={act} />,
     "Contacts migration": <ContactsPage data={data} busy={isBusy} act={act} />,
+    "Calendar migration": <CalendarPage data={data} busy={isBusy} act={act} />,
     Security: <SecurityPage data={data} busy={isBusy} act={act} />,
     "Final report": (
       <section className="panel intro">

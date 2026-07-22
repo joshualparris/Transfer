@@ -52,4 +52,10 @@ export interface LifeboatApi {
   convertOtherContacts:()=>Promise<DashboardData>;
   verifyContactsDestinationOnly:()=>Promise<DashboardData>;
   onContactsProgress: (fn:(progress:any)=>void)=>()=>void;
+  authorizeCalendar:()=>Promise<DashboardData>;
+  discoverCalendar:()=>Promise<DashboardData>;
+  startCalendar:()=>Promise<DashboardData>;
+  exportCalendars:()=>Promise<string[]|null>;
+  verifyCalendarDestinationOnly:()=>Promise<DashboardData>;
+  onCalendarProgress:(fn:(progress:any)=>void)=>()=>void;
 }

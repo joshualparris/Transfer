@@ -46,6 +46,12 @@ const lifeboat: LifeboatApi = {
   convertOtherContacts:()=>ipcRenderer.invoke('contacts-convert-other'),
   verifyContactsDestinationOnly:()=>ipcRenderer.invoke('contacts-verify-destination'),
   onContactsProgress:(fn)=>listen('contacts-progress',fn),
+  authorizeCalendar:()=>ipcRenderer.invoke('calendar-authorize'),
+  discoverCalendar:()=>ipcRenderer.invoke('calendar-discover'),
+  startCalendar:()=>ipcRenderer.invoke('calendar-start'),
+  exportCalendars:()=>ipcRenderer.invoke('calendar-export'),
+  verifyCalendarDestinationOnly:()=>ipcRenderer.invoke('calendar-verify-destination'),
+  onCalendarProgress:(fn)=>listen('calendar-progress',fn),
 };
 
 contextBridge.exposeInMainWorld("lifeboat", lifeboat);
