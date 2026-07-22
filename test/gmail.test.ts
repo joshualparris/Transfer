@@ -1,5 +1,118 @@
-import{describe,expect,it}from'vitest';import{mkdtempSync,readFileSync}from'node:fs';import{tmpdir}from'node:os';import path from'node:path';import{LifeboatDatabase}from'../electron/database';import{isRetryable,retryDelay,semanticFingerprint}from'../electron/gmail';
-const dbFile=()=>path.join(mkdtempSync(path.join(tmpdir(),'lifeboat-gmail-')),'state.db');const message={runId:'run',sourceSubject:'source-sub',destinationSubject:'dest-sub',sourceMessageId:'m1',sourceThreadId:'t1',internalDate:'1000',rfcMessageIdHash:'a',dateHash:'b',fromDomain:'example.test',subjectHash:'c',sizeEstimate:123,attachmentCount:1,attachmentFingerprint:'d',sourceLabels:['INBOX'],method:'insert'};
-describe('Gmail manifest idempotency',()=>{it('pairs once and skips paired messages on resume',()=>{const db=new LifeboatDatabase(dbFile());expect(db.upsertGmailMessage(message).inserted).toBe(true);expect(db.upsertGmailMessage(message).inserted).toBe(false);const row=db.nextGmail(1)[0];expect(db.startGmailMessage(row.id)).toBe(true);db.completeGmailMessage(row.id,{destinationMessageId:'dest1',destinationThreadId:'dt1',rawSha256:'raw',fingerprint:'semantic',destinationLabels:['label1']});expect(db.gmailPair('source-sub','dest-sub','m1').destination_message_id).toBe('dest1');expect(db.nextGmail()).toHaveLength(0);db.close()});it('recovers an interrupted lease without losing the pairing key',()=>{const file=dbFile();let db=new LifeboatDatabase(file);db.upsertGmailMessage(message);db.startGmailMessage(db.nextGmail(1)[0].id);db.close();db=new LifeboatDatabase(file);expect(db.nextGmail(1)[0].status).toBe('failed-retryable');expect(db.upsertGmailMessage(message).inserted).toBe(false);db.close()})});
-describe('Gmail safety and retry policy',()=>{it('uses stable multi-field fingerprints',()=>{const a=semanticFingerprint({messageId:'id',date:'date',from:'a',to:'b',subject:'s',size:1,attachments:'x'});expect(a).toBe(semanticFingerprint({messageId:'id',date:'date',from:'a',to:'b',subject:'s',size:1,attachments:'x'}));expect(a).not.toBe(semanticFingerprint({messageId:'id2',date:'date',from:'a',to:'b',subject:'s',size:1,attachments:'x'}))});it('classifies transient failures and caps backoff',()=>{expect(isRetryable({code:429})).toBe(true);expect(isRetryable({code:403,response:{data:{error:{errors:[{reason:'domainPolicy'}]}}}})).toBe(false);expect(retryDelay(20)).toBeLessThanOrEqual(65000)});it('contains no production send call',()=>{for(const file of['electron/gmail.ts','electron/main/index.ts']){const text=readFileSync(path.join(process.cwd(),file),'utf8');expect(text).not.toMatch(/messages\.send\s*\(/);expect(text).not.toMatch(/drafts\.send\s*\(/)}})});
-describe('Gmail permission recovery',()=>{it('requeues only unpaired scope failures',()=>{const db=new LifeboatDatabase(dbFile());db.upsertGmailMessage(message);const row=db.nextGmail(1)[0];db.failGmailMessage(row.id,false,'403','Request had insufficient authentication scopes.');expect(db.nextGmail()).toHaveLength(0);expect(db.retryGmailPermissionFailures('source-sub','dest-sub')).toBe(1);expect(db.nextGmail()).toHaveLength(1);db.close()})});
+import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { LifeboatDatabase } from "../electron/database";
+import { isRetryable, retryDelay, semanticFingerprint } from "../electron/gmail";
+const dbFile = () => path.join(mkdtempSync(path.join(tmpdir(), "lifeboat-gmail-")), "state.db");
+const message = {
+  runId: "run",
+  sourceSubject: "source-sub",
+  destinationSubject: "dest-sub",
+  sourceMessageId: "m1",
+  sourceThreadId: "t1",
+  internalDate: "1000",
+  rfcMessageIdHash: "a",
+  dateHash: "b",
+  fromDomain: "example.test",
+  subjectHash: "c",
+  sizeEstimate: 123,
+  attachmentCount: 1,
+  attachmentFingerprint: "d",
+  sourceLabels: ["INBOX"],
+  method: "insert",
+};
+describe("Gmail manifest idempotency", () => {
+  it("pairs once and skips paired messages on resume", () => {
+    const db = new LifeboatDatabase(dbFile());
+    expect(db.upsertGmailMessage(message).inserted).toBe(true);
+    expect(db.upsertGmailMessage(message).inserted).toBe(false);
+    const row = db.nextGmail(1)[0];
+    expect(db.startGmailMessage(row.id)).toBe(true);
+    db.completeGmailMessage(row.id, {
+      destinationMessageId: "dest1",
+      destinationThreadId: "dt1",
+      rawSha256: "raw",
+      fingerprint: "semantic",
+      destinationLabels: ["label1"],
+    });
+    expect(db.gmailPair("source-sub", "dest-sub", "m1").destination_message_id).toBe("dest1");
+    expect(db.nextGmail()).toHaveLength(0);
+    db.close();
+  });
+  it("recovers an interrupted lease without losing the pairing key", () => {
+    const file = dbFile();
+    let db = new LifeboatDatabase(file);
+    db.upsertGmailMessage(message);
+    db.startGmailMessage(db.nextGmail(1)[0].id);
+    db.close();
+    db = new LifeboatDatabase(file);
+    expect(db.nextGmail(1)[0].status).toBe("failed-retryable");
+    expect(db.upsertGmailMessage(message).inserted).toBe(false);
+    db.close();
+  });
+});
+describe("Gmail safety and retry policy", () => {
+  it("uses stable multi-field fingerprints", () => {
+    const a = semanticFingerprint({
+      messageId: "id",
+      date: "date",
+      from: "a",
+      to: "b",
+      subject: "s",
+      size: 1,
+      attachments: "x",
+    });
+    expect(a).toBe(
+      semanticFingerprint({
+        messageId: "id",
+        date: "date",
+        from: "a",
+        to: "b",
+        subject: "s",
+        size: 1,
+        attachments: "x",
+      }),
+    );
+    expect(a).not.toBe(
+      semanticFingerprint({
+        messageId: "id2",
+        date: "date",
+        from: "a",
+        to: "b",
+        subject: "s",
+        size: 1,
+        attachments: "x",
+      }),
+    );
+  });
+  it("classifies transient failures and caps backoff", () => {
+    expect(isRetryable({ code: 429 })).toBe(true);
+    expect(
+      isRetryable({
+        code: 403,
+        response: { data: { error: { errors: [{ reason: "domainPolicy" }] } } },
+      }),
+    ).toBe(false);
+    expect(retryDelay(20)).toBeLessThanOrEqual(65000);
+  });
+  it("contains no production send call", () => {
+    for (const file of ["electron/gmail.ts", "electron/main/index.ts"]) {
+      const text = readFileSync(path.join(process.cwd(), file), "utf8");
+      expect(text).not.toMatch(/messages\.send\s*\(/);
+      expect(text).not.toMatch(/drafts\.send\s*\(/);
+    }
+  });
+});
+describe("Gmail permission recovery", () => {
+  it("requeues only unpaired scope failures", () => {
+    const db = new LifeboatDatabase(dbFile());
+    db.upsertGmailMessage(message);
+    const row = db.nextGmail(1)[0];
+    db.failGmailMessage(row.id, false, "403", "Request had insufficient authentication scopes.");
+    expect(db.nextGmail()).toHaveLength(0);
+    expect(db.retryGmailPermissionFailures("source-sub", "dest-sub")).toBe(1);
+    expect(db.nextGmail()).toHaveLength(1);
+    db.close();
+  });
+});

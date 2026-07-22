@@ -24,10 +24,7 @@ export const SOURCE_SCOPES = [
   "https://www.googleapis.com/auth/contacts.other.readonly",
   "https://www.googleapis.com/auth/calendar.readonly",
 ];
-export const DESTINATION_SCOPES = [
-  "openid",
-  "email",
-];
+export const DESTINATION_SCOPES = ["openid", "email"];
 export const CONTACTS_DESTINATION_SCOPES = [
   "openid",
   "email",
@@ -51,18 +48,14 @@ export const GMAIL_SETTINGS_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/gmail.settings.basic",
 ];
-export const CONTACTS_COPY_SCOPES = ["openid","email","https://www.googleapis.com/auth/contacts"];
+export const CONTACTS_COPY_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/contacts"];
 
 async function clientConfig(path: string) {
   const parsed = ClientFile.safeParse(JSON.parse(await readFile(path, "utf8")));
-  if (!parsed.success)
-    throw new Error("This is not a valid Google OAuth desktop client file");
+  if (!parsed.success) throw new Error("This is not a valid Google OAuth desktop client file");
   return parsed.data.installed;
 }
-export async function authenticate(
-  role: AccountRole,
-  path: string,
-): Promise<AccountSummary> {
+export async function authenticate(role: AccountRole, path: string): Promise<AccountSummary> {
   const cfg = await clientConfig(path);
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
@@ -70,35 +63,23 @@ export async function authenticate(
     server.listen(0, "localhost", () => resolve());
   });
   const addr = server.address();
-  if (!addr || typeof addr === "string")
-    throw new Error("Could not start local OAuth callback");
+  if (!addr || typeof addr === "string") throw new Error("Could not start local OAuth callback");
   // Google desktop clients are issued with http://localhost as their loopback
   // redirect. The ephemeral port is permitted; keep the registered host/path
   // instead of changing it to 127.0.0.1, which some projects reject.
   const redirect = `http://localhost:${addr.port}`;
-  const oauth = new google.auth.OAuth2(
-    cfg.client_id,
-    cfg.client_secret,
-    redirect,
-  );
+  const oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect);
   const state = randomUUID();
   const scopes = role === "source" ? SOURCE_SCOPES : DESTINATION_SCOPES;
   const codePromise = new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error("OAuth timed out")),
-      180000,
-    );
+    const timeout = setTimeout(() => reject(new Error("OAuth timed out")), 180000);
     server.on("request", (req, res) => {
       try {
         const u = new URL(req.url ?? "", redirect);
         if (u.pathname !== "/") return;
-        if (u.searchParams.get("state") !== state)
-          throw new Error("OAuth state mismatch");
+        if (u.searchParams.get("state") !== state) throw new Error("OAuth state mismatch");
         const code = u.searchParams.get("code");
-        if (!code)
-          throw new Error(
-            u.searchParams.get("error") ?? "No authorization code",
-          );
+        if (!code) throw new Error(u.searchParams.get("error") ?? "No authorization code");
         res.end("Cornerstone Lifeboat connected. You can close this tab.");
         clearTimeout(timeout);
         resolve(code);
@@ -123,11 +104,8 @@ export async function authenticate(
   const code = await codePromise;
   const { tokens: creds } = await oauth.getToken(code);
   oauth.setCredentials(creds);
-  const info = await google
-    .oauth2({ version: "v2", auth: oauth })
-    .userinfo.get();
-  if (!info.data.email)
-    throw new Error("Google did not return a verified email");
+  const info = await google.oauth2({ version: "v2", auth: oauth }).userinfo.get();
+  if (!info.data.email) throw new Error("Google did not return a verified email");
   await tokens.set(role, {
     credentials: creds,
     clientId: cfg.client_id,
@@ -141,11 +119,7 @@ export async function authenticate(
     connectedAt: new Date().toISOString(),
   };
 }
-export async function authorizeFeature(
-  role: AccountRole,
-  path: string,
-  scopes: string[],
-) {
+export async function authorizeFeature(role: AccountRole, path: string, scopes: string[]) {
   const cfg = await clientConfig(path),
     server = createServer();
   await new Promise<void>((resolve, reject) => {
@@ -153,27 +127,19 @@ export async function authorizeFeature(
     server.listen(0, "localhost", resolve);
   });
   const addr = server.address();
-  if (!addr || typeof addr === "string")
-    throw new Error("Could not start OAuth callback");
+  if (!addr || typeof addr === "string") throw new Error("Could not start OAuth callback");
   const redirect = `http://localhost:${addr.port}`,
     oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect),
     state = randomUUID(),
     codePromise = new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error("OAuth timed out")),
-        180000,
-      );
+      const timer = setTimeout(() => reject(new Error("OAuth timed out")), 180000);
       server.on("request", (req, res) => {
         try {
           const u = new URL(req.url ?? "", redirect);
           if (u.pathname !== "/") return;
-          if (u.searchParams.get("state") !== state)
-            throw new Error("OAuth state mismatch");
+          if (u.searchParams.get("state") !== state) throw new Error("OAuth state mismatch");
           const code = u.searchParams.get("code");
-          if (!code)
-            throw new Error(
-              u.searchParams.get("error") ?? "Authorization failed",
-            );
+          if (!code) throw new Error(u.searchParams.get("error") ?? "Authorization failed");
           res.end("Feature authorised. You can close this tab.");
           clearTimeout(timer);
           resolve(code);
@@ -195,9 +161,7 @@ export async function authorizeFeature(
   );
   const { tokens: creds } = await oauth.getToken(await codePromise);
   oauth.setCredentials(creds);
-  const granted = creds.access_token
-    ? (await oauth.getTokenInfo(creds.access_token)).scopes
-    : [];
+  const granted = creds.access_token ? (await oauth.getTokenInfo(creds.access_token)).scopes : [];
   const missing = scopes.filter(
     (scope) => !["openid", "email"].includes(scope) && !granted.includes(scope),
   );
@@ -205,9 +169,7 @@ export async function authorizeFeature(
     throw new Error(
       `Google did not grant the required permission: ${missing.join(", ")}. Please authorise again and accept every requested permission.`,
     );
-  const info = await google
-      .oauth2({ version: "v2", auth: oauth })
-      .userinfo.get(),
+  const info = await google.oauth2({ version: "v2", auth: oauth }).userinfo.get(),
     existing = await tokens.get(role);
   await tokens.set(role, {
     credentials: { ...existing?.credentials, ...creds },
@@ -245,7 +207,17 @@ export async function assertGrantedScopes(role: AccountRole, required: string[])
   return granted;
 }
 
-export async function inventory(email: string,onProgress?:(event:{module:string;message:string;counts?:Record<string,number>;done?:boolean;error?:boolean})=>void,shouldCancel:()=>boolean=()=>false): Promise<InventorySnapshot> {
+export async function inventory(
+  email: string,
+  onProgress?: (event: {
+    module: string;
+    message: string;
+    counts?: Record<string, number>;
+    done?: boolean;
+    error?: boolean;
+  }) => void,
+  shouldCancel: () => boolean = () => false,
+): Promise<InventorySnapshot> {
   const auth = await authFor("source"),
     errors: InventorySnapshot["errors"] = [];
   const snap: InventorySnapshot = {
@@ -274,23 +246,52 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
     },
     errors,
   };
-  onProgress?.({module:'inventory',message:'Starting read-only source inventory'});
+  onProgress?.({ module: "inventory", message: "Starting read-only source inventory" });
   try {
-    onProgress?.({module:'gmail',message:'Reading mailbox totals and labels'});
+    onProgress?.({ module: "gmail", message: "Reading mailbox totals and labels" });
     const api = google.gmail({ version: "v1", auth });
     const profile = await api.users.getProfile({ userId: "me" });
     snap.gmail.messages = profile.data.messagesTotal ?? 0;
     snap.gmail.threads = profile.data.threadsTotal ?? 0;
     const labels = await api.users.labels.list({ userId: "me" });
-    const pending=(labels.data.labels??[]).filter(l=>l.id);
-    for(let i=0;i<pending.length;i+=5){if(shouldCancel())throw new Error('Inventory cancelled by user');const batch=await Promise.all(pending.slice(i,i+5).map(async l=>({label:l,full:await api.users.labels.get({userId:'me',id:l.id!})})));for(const {label:l,full} of batch)snap.gmail.labels.push({id:l.id!,name:l.name??l.id!,messages:full.data.messagesTotal??0,threads:full.data.threadsTotal??0});onProgress?.({module:'gmail',message:'Reading Gmail labels',counts:{labels:snap.gmail.labels.length,messages:snap.gmail.messages}})}
-    onProgress?.({module:'gmail',message:'Gmail inventory complete',counts:{messages:snap.gmail.messages,threads:snap.gmail.threads,labels:snap.gmail.labels.length},done:true});
+    const pending = (labels.data.labels ?? []).filter((l) => l.id);
+    for (let i = 0; i < pending.length; i += 5) {
+      if (shouldCancel()) throw new Error("Inventory cancelled by user");
+      const batch = await Promise.all(
+        pending.slice(i, i + 5).map(async (l) => ({
+          label: l,
+          full: await api.users.labels.get({ userId: "me", id: l.id! }),
+        })),
+      );
+      for (const { label: l, full } of batch)
+        snap.gmail.labels.push({
+          id: l.id!,
+          name: l.name ?? l.id!,
+          messages: full.data.messagesTotal ?? 0,
+          threads: full.data.threadsTotal ?? 0,
+        });
+      onProgress?.({
+        module: "gmail",
+        message: "Reading Gmail labels",
+        counts: { labels: snap.gmail.labels.length, messages: snap.gmail.messages },
+      });
+    }
+    onProgress?.({
+      module: "gmail",
+      message: "Gmail inventory complete",
+      counts: {
+        messages: snap.gmail.messages,
+        threads: snap.gmail.threads,
+        labels: snap.gmail.labels.length,
+      },
+      done: true,
+    });
   } catch (e) {
     errors.push({ module: "gmail", message: redact(e) });
-    onProgress?.({module:'gmail',message:redact(e),error:true,done:true});
+    onProgress?.({ module: "gmail", message: redact(e), error: true, done: true });
   }
   try {
-    onProgress?.({module:'drive',message:'Reading Drive metadata (no files are downloaded)'});
+    onProgress?.({ module: "drive", message: "Reading Drive metadata (no files are downloaded)" });
     const api = google.drive({ version: "v3", auth });
     const about = await api.about.get({ fields: "storageQuota" });
     snap.drive.usageBytes = Number(about.data.storageQuota?.usage ?? 0);
@@ -308,8 +309,7 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
       });
       for (const f of r.data.files ?? []) {
         snap.drive.files++;
-        if (f.mimeType === "application/vnd.google-apps.folder")
-          snap.drive.folders++;
+        if (f.mimeType === "application/vnd.google-apps.folder") snap.drive.folders++;
         if (
           f.mimeType?.startsWith("application/vnd.google-apps.") &&
           f.mimeType !== "application/vnd.google-apps.folder"
@@ -320,15 +320,24 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
         snap.drive.bytes += Number(f.size ?? 0);
       }
       pageToken = r.data.nextPageToken ?? undefined;
-      onProgress?.({module:'drive',message:'Reading Drive pages',counts:{files:snap.drive.files,folders:snap.drive.folders}});
+      onProgress?.({
+        module: "drive",
+        message: "Reading Drive pages",
+        counts: { files: snap.drive.files, folders: snap.drive.folders },
+      });
     } while (pageToken);
-    onProgress?.({module:'drive',message:'Drive inventory complete',counts:{files:snap.drive.files,folders:snap.drive.folders},done:true});
+    onProgress?.({
+      module: "drive",
+      message: "Drive inventory complete",
+      counts: { files: snap.drive.files, folders: snap.drive.folders },
+      done: true,
+    });
   } catch (e) {
     errors.push({ module: "drive", message: redact(e) });
-    onProgress?.({module:'drive',message:redact(e),error:true,done:true});
+    onProgress?.({ module: "drive", message: redact(e), error: true, done: true });
   }
   try {
-    onProgress?.({module:'contacts',message:'Reading personal-contact counts and groups'});
+    onProgress?.({ module: "contacts", message: "Reading personal-contact counts and groups" });
     const api = google.people({ version: "v1", auth });
     let pageToken: string | undefined;
     do {
@@ -340,24 +349,35 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
       });
       snap.contacts.contacts += (r.data.connections ?? []).length;
       pageToken = r.data.nextPageToken ?? undefined;
-      onProgress?.({module:'contacts',message:'Reading Contacts pages',counts:{contacts:snap.contacts.contacts}});
+      onProgress?.({
+        module: "contacts",
+        message: "Reading Contacts pages",
+        counts: { contacts: snap.contacts.contacts },
+      });
     } while (pageToken);
     const groups = await api.contactGroups.list({ pageSize: 1000 });
-    snap.contacts.groups =
-      groups.data.totalItems ?? (groups.data.contactGroups ?? []).length;
+    snap.contacts.groups = groups.data.totalItems ?? (groups.data.contactGroups ?? []).length;
     const other = await api.otherContacts.list({
       pageSize: 1000,
       readMask: "metadata",
     });
-    snap.contacts.otherContacts =
-      other.data.totalSize ?? (other.data.otherContacts ?? []).length;
-    onProgress?.({module:'contacts',message:'Contacts inventory complete',counts:{contacts:snap.contacts.contacts,groups:snap.contacts.groups,otherContacts:snap.contacts.otherContacts??0},done:true});
+    snap.contacts.otherContacts = other.data.totalSize ?? (other.data.otherContacts ?? []).length;
+    onProgress?.({
+      module: "contacts",
+      message: "Contacts inventory complete",
+      counts: {
+        contacts: snap.contacts.contacts,
+        groups: snap.contacts.groups,
+        otherContacts: snap.contacts.otherContacts ?? 0,
+      },
+      done: true,
+    });
   } catch (e) {
     errors.push({ module: "contacts", message: redact(e) });
-    onProgress?.({module:'contacts',message:redact(e),error:true,done:true});
+    onProgress?.({ module: "contacts", message: redact(e), error: true, done: true });
   }
   try {
-    onProgress?.({module:'calendar',message:'Reading calendars and event counts'});
+    onProgress?.({ module: "calendar", message: "Reading calendars and event counts" });
     const api = google.calendar({ version: "v3", auth });
     let token: string | undefined;
     const ids: string[] = [];
@@ -374,7 +394,11 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
         else snap.calendar.shared++;
       }
       token = r.data.nextPageToken ?? undefined;
-      onProgress?.({module:'calendar',message:'Reading calendar list',counts:{calendars:snap.calendar.calendars}});
+      onProgress?.({
+        module: "calendar",
+        message: "Reading calendar list",
+        counts: { calendars: snap.calendar.calendars },
+      });
     } while (token);
     for (const id of ids) {
       let p: string | undefined;
@@ -393,14 +417,36 @@ export async function inventory(email: string,onProgress?:(event:{module:string;
           if (start && new Date(start) >= new Date()) snap.calendar.future++;
         }
         p = r.data.nextPageToken ?? undefined;
-        onProgress?.({module:'calendar',message:'Reading calendar event pages',counts:{calendars:snap.calendar.calendars,events:snap.calendar.events,recurring:snap.calendar.recurring}});
+        onProgress?.({
+          module: "calendar",
+          message: "Reading calendar event pages",
+          counts: {
+            calendars: snap.calendar.calendars,
+            events: snap.calendar.events,
+            recurring: snap.calendar.recurring,
+          },
+        });
       } while (p);
     }
-    onProgress?.({module:'calendar',message:'Calendar inventory complete',counts:{calendars:snap.calendar.calendars,events:snap.calendar.events,recurring:snap.calendar.recurring},done:true});
+    onProgress?.({
+      module: "calendar",
+      message: "Calendar inventory complete",
+      counts: {
+        calendars: snap.calendar.calendars,
+        events: snap.calendar.events,
+        recurring: snap.calendar.recurring,
+      },
+      done: true,
+    });
   } catch (e) {
     errors.push({ module: "calendar", message: redact(e) });
-    onProgress?.({module:'calendar',message:redact(e),error:true,done:true});
+    onProgress?.({ module: "calendar", message: redact(e), error: true, done: true });
   }
-  onProgress?.({module:'inventory',message:`Inventory finished with ${errors.length} module warning${errors.length===1?'':'s'}`,counts:{warnings:errors.length},done:true});
+  onProgress?.({
+    module: "inventory",
+    message: `Inventory finished with ${errors.length} module warning${errors.length === 1 ? "" : "s"}`,
+    counts: { warnings: errors.length },
+    done: true,
+  });
   return snap;
 }

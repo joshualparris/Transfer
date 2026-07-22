@@ -36,21 +36,18 @@ function reducer(state: State, action: Action): State {
 export function useActionManager() {
   const [state, dispatch] = useReducer(reducer, {} as State);
 
-  const act = useCallback(
-    async <T,>(label: string, fn: () => Promise<T>): Promise<T> => {
-      dispatch({ type: "start", label });
-      try {
-        const result = await fn();
-        dispatch({ type: "success", label });
-        return result;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({ type: "failure", label, error: message });
-        throw error;
-      }
-    },
-    [],
-  );
+  const act = useCallback(async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+    dispatch({ type: "start", label });
+    try {
+      const result = await fn();
+      dispatch({ type: "success", label });
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      dispatch({ type: "failure", label, error: message });
+      throw error;
+    }
+  }, []);
 
   const clearError = useCallback((label: string) => {
     dispatch({ type: "clear", label });

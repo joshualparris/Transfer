@@ -1,4 +1,98 @@
-import{createHash}from'node:crypto';import{createReadStream}from'node:fs';import{mkdir,readdir,rename,stat,writeFile}from'node:fs/promises';import path from'node:path';
-const photo=new Set(['.jpg','.jpeg','.png','.gif','.webp','.heic','.tif','.tiff','.mp4','.mov','.avi','.mkv','.3gp']),keep=new Set(['.json','.html','.txt']);
-async function digest(file:string){const h=createHash('sha256');await new Promise<void>((ok,no)=>createReadStream(file).on('data',b=>h.update(b)).on('end',ok).on('error',no));return h.digest('hex')}
-export async function scanTakeout(root:string,output:string,progress?:(x:any)=>void){const base=path.resolve(root);if(base===path.parse(base).root)throw new Error('Choose the extracted Google Takeout folder, not a disk root');const rows:any[]=[],stack=[base];let files=0,bytes=0;while(stack.length){const dir=stack.pop()!;for(const d of await readdir(dir,{withFileTypes:true})){const full=path.join(dir,d.name);if(d.isDirectory()){stack.push(full);continue}if(!d.isFile())continue;const rel=path.relative(base,full),lower=rel.toLowerCase(),ext=path.extname(d.name).toLowerCase(),service=lower.includes('google photos')&&photo.has(ext)?'photos':lower.includes('keep')&&keep.has(ext)?'keep':'other';if(service==='other')continue;const s=await stat(full);rows.push({service,path:rel,size:s.size,sha256:await digest(full)});files++;bytes+=s.size;if(files%25===0)progress?.({operation:'Hashing Takeout files',files,bytes})}}await mkdir(output,{recursive:true});const stamp=new Date().toISOString().replace(/[:.]/g,'-'),baseName=path.join(output,`takeout-evidence-${stamp}`),summary={createdAt:new Date().toISOString(),sourceFolder:path.basename(base),files,bytes,photos:rows.filter(x=>x.service==='photos').length,keep:rows.filter(x=>x.service==='keep').length};for(const[ext,data]of[['json',JSON.stringify({summary,files:rows},null,2)],['csv',['service,path,size,sha256',...rows.map(x=>[x.service,`"${x.path.replaceAll('"','""')}"`,x.size,x.sha256].join(','))].join('\r\n')]]as const){const tmp=`${baseName}.${ext}.tmp`;await writeFile(tmp,data,{flag:'wx'});await rename(tmp,`${baseName}.${ext}`)}progress?.({operation:'Takeout verification complete',...summary});return summary}
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+const photo = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".gif",
+  ".webp",
+  ".heic",
+  ".tif",
+  ".tiff",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".mkv",
+  ".3gp",
+]);
+async function digest(file: string) {
+  const h = createHash("sha256");
+  await new Promise<void>((ok, no) =>
+    createReadStream(file)
+      .on("data", (b) => h.update(b))
+      .on("end", ok)
+      .on("error", no),
+  );
+  return h.digest("hex");
+}
+export async function scanTakeout(root: string, output: string, progress?: (x: any) => void) {
+  const base = path.resolve(root);
+  if (base === path.parse(base).root)
+    throw new Error("Choose the extracted Google Takeout folder, not a disk root");
+  const rows: any[] = [],
+    stack = [base];
+  let files = 0,
+    bytes = 0;
+  while (stack.length) {
+    const dir = stack.pop()!;
+    for (const d of await readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir, d.name);
+      if (d.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!d.isFile()) continue;
+      const rel = path.relative(base, full),
+        lower = rel.toLowerCase(),
+        service = lower.includes("google photos")
+          ? "photos"
+          : lower.includes("keep")
+            ? "keep"
+            : "other";
+      const s = await stat(full);
+      rows.push({ service, path: rel, size: s.size, sha256: await digest(full) });
+      files++;
+      bytes += s.size;
+      if (files % 25 === 0) progress?.({ operation: "Hashing Takeout files", files, bytes });
+    }
+  }
+  await mkdir(output, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-"),
+    baseName = path.join(output, `takeout-evidence-${stamp}`),
+    summary = {
+      createdAt: new Date().toISOString(),
+      sourceFolder: path.basename(base),
+      files,
+      bytes,
+      photos: rows.filter((x) => x.service === "photos").length,
+      keep: rows.filter((x) => x.service === "keep").length,
+      other: rows.filter((x) => x.service === "other").length,
+      zeroByteFiles: rows.filter((x) => x.size === 0).length,
+      photoMedia: rows.filter(
+        (x) => x.service === "photos" && photo.has(path.extname(x.path).toLowerCase()),
+      ).length,
+      photoSidecars: rows.filter(
+        (x) => x.service === "photos" && path.extname(x.path).toLowerCase() === ".json",
+      ).length,
+    };
+  for (const [ext, data] of [
+    ["json", JSON.stringify({ summary, files: rows }, null, 2)],
+    [
+      "csv",
+      [
+        "service,path,size,sha256",
+        ...rows.map((x) =>
+          [x.service, `"${x.path.replaceAll('"', '""')}"`, x.size, x.sha256].join(","),
+        ),
+      ].join("\r\n"),
+    ],
+  ] as const) {
+    const tmp = `${baseName}.${ext}.tmp`;
+    await writeFile(tmp, data, { flag: "wx" });
+    await rename(tmp, `${baseName}.${ext}`);
+  }
+  progress?.({ operation: "Takeout verification complete", ...summary });
+  return summary;
+}

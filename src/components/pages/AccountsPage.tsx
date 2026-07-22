@@ -14,9 +14,7 @@ export default function AccountsPage({
       <section className="panel intro">
         <div>
           <h2>Two separate Google identities</h2>
-          <p>
-            OAuth tokens live only in the operating-system credential store.
-          </p>
+          <p>OAuth tokens live only in the operating-system credential store.</p>
         </div>
         <button
           className="secondary"
@@ -27,7 +25,7 @@ export default function AccountsPage({
         </button>
       </section>
       <div className="accountgrid">
-        {( ["source", "destination"] as const).map((role) => {
+        {(["source", "destination"] as const).map((role) => {
           const account = data.accounts.find((x) => x.role === role);
           return (
             <section className="panel account" key={role}>
@@ -41,7 +39,10 @@ export default function AccountsPage({
                   Revoke & remove
                 </button>
               ) : (
-                <button disabled={busy} onClick={() => act(role, () => window.lifeboat.connect(role))}>
+                <button
+                  disabled={busy}
+                  onClick={() => act(role, () => window.lifeboat.connect(role))}
+                >
                   Connect {role}
                 </button>
               )}

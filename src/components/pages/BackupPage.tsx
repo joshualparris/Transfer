@@ -43,7 +43,10 @@ export default function BackupPage({
           <span>{data.drive.running ? "Running" : "Stopped"}</span>
         </div>
         {data.drive.running ? (
-          <button className="danger" onClick={() => act("pause", () => window.lifeboat.pauseDrive())}>
+          <button
+            className="danger"
+            onClick={() => act("pause", () => window.lifeboat.pauseDrive())}
+          >
             Pause safely
           </button>
         ) : (

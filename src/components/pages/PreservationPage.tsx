@@ -1,2 +1,66 @@
-import type{DashboardData}from'../../../electron/types';type Act=(label:string,fn:()=>Promise<any>)=>Promise<any>;
-export default function PreservationPage({data,busy,act}:{data:DashboardData;busy:boolean;act:Act}){const p=data.preservation;return <><section className="panel"><div className="paneltitle"><div><p className="eyebrow">PRESERVATION · PHOTOS + KEEP</p><h2>Verified Takeout archive</h2></div><span>Non-destructive</span></div><p>Google does not provide a supported API that can faithfully copy all Google Photos or Keep data to another consumer account. Lifeboat therefore verifies an extracted Google Takeout archive with SHA-256 checksums and records what is preserved.</p><button disabled={busy||p.running} onClick={()=>act('takeout-scan',()=>window.lifeboat.scanTakeout())}>Choose and verify Takeout folder</button></section><div className="metrics"><div className="metric"><small>Photos / videos</small><b>{Number(p.result?.photos??0).toLocaleString()}</b></div><div className="metric"><small>Keep files</small><b>{Number(p.result?.keep??0).toLocaleString()}</b></div><div className="metric"><small>Total files</small><b>{Number(p.result?.files??0).toLocaleString()}</b></div><div className="metric"><small>Bytes hashed</small><b>{Number(p.result?.bytes??0).toLocaleString()}</b></div></div><section className="panel"><h3>What to do</h3><ol><li>Request Google Takeout for Google Photos and Keep from the source account.</li><li>Download and extract every archive part into one folder.</li><li>Use the button above and choose a separate evidence-output folder.</li><li>Keep both the extracted archive and generated JSON/CSV checksum manifests.</li></ol><p>{p.progress?.operation??'No Takeout folder verified yet.'}</p></section></>}
+import type { DashboardData } from "../../../electron/types";
+type Act = (label: string, fn: () => Promise<any>) => Promise<any>;
+export default function PreservationPage({
+  data,
+  busy,
+  act,
+}: {
+  data: DashboardData;
+  busy: boolean;
+  act: Act;
+}) {
+  const p = data.preservation;
+  return (
+    <>
+      <section className="panel">
+        <div className="paneltitle">
+          <div>
+            <p className="eyebrow">PRESERVATION · PHOTOS + KEEP</p>
+            <h2>Selected Takeout file checksum inventory</h2>
+          </div>
+          <span>Non-destructive</span>
+        </div>
+        <p>
+          Google does not provide a supported API that can faithfully copy all Google Photos or Keep
+          data to another consumer account. Lifeboat therefore verifies an extracted Google Takeout
+          folder with SHA-256 checksums and records exactly what was readable. This is an inventory,
+          not proof that every Takeout archive part was downloaded or that a second copy exists.
+        </p>
+        <button
+          disabled={busy || p.running}
+          onClick={() => act("takeout-scan", () => window.lifeboat.scanTakeout())}
+        >
+          Choose and checksum Takeout folder
+        </button>
+      </section>
+      <div className="metrics">
+        <div className="metric">
+          <small>Photos / videos</small>
+          <b>{Number(p.result?.photos ?? 0).toLocaleString()}</b>
+        </div>
+        <div className="metric">
+          <small>Keep files</small>
+          <b>{Number(p.result?.keep ?? 0).toLocaleString()}</b>
+        </div>
+        <div className="metric">
+          <small>Total files</small>
+          <b>{Number(p.result?.files ?? 0).toLocaleString()}</b>
+        </div>
+        <div className="metric">
+          <small>Bytes hashed</small>
+          <b>{Number(p.result?.bytes ?? 0).toLocaleString()}</b>
+        </div>
+      </div>
+      <section className="panel">
+        <h3>What to do</h3>
+        <ol>
+          <li>Request Google Takeout for Google Photos and Keep from the source account.</li>
+          <li>Download and extract every archive part into one folder.</li>
+          <li>Use the button above and choose a separate evidence-output folder.</li>
+          <li>Keep both the extracted archive and generated JSON/CSV checksum manifests.</li>
+        </ol>
+        <p>{p.progress?.operation ?? "No Takeout folder verified yet."}</p>
+      </section>
+    </>
+  );
+}

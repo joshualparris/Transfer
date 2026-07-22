@@ -1,14 +1,216 @@
-import{spawn,spawnSync,type ChildProcessWithoutNullStreams}from'node:child_process';import{access,constants,mkdir,mkdtemp,rm,statfs,writeFile}from'node:fs/promises';import{existsSync,readdirSync}from'node:fs';import os from'node:os';import path from'node:path';import{redact}from'./security';
-export const REMOTE_RE=/^[A-Za-z0-9][A-Za-z0-9._ -]{0,63}$/;
-export function validateRemote(name:string){if(!REMOTE_RE.test(name)||name.includes('..'))throw new Error('Invalid rclone remote name');return name;}
-export function validateDestination(p:string){const resolved=path.resolve(p);if(!path.isAbsolute(resolved))throw new Error('Destination must be an absolute path');if(resolved===path.parse(resolved).root)throw new Error('Choose a folder, not a filesystem root');return resolved;}
-export function copyArgs(remote:string,destination:string,options:{transfers?:number;checkers?:number}={}){validateRemote(remote);const dest=validateDestination(destination);return['copy',`${remote}:`,path.join(dest,'Cornerstone-Lifeboat','drive'),'--create-empty-src-dirs','--drive-export-formats','docx,xlsx,pptx,pdf','--transfers',String(options.transfers??4),'--checkers',String(options.checkers??8),'--retries','10','--low-level-retries','20','--stats','10s','--stats-one-line','--log-level','INFO'];}
-export function checkArgs(remote:string,destination:string){validateRemote(remote);return['check',`${remote}:`,path.join(validateDestination(destination),'Cornerstone-Lifeboat','drive'),'--one-way','--download','--drive-export-formats','docx,xlsx,pptx,pdf','--checkers','8','--combined','-'];}
-export type Progress={bytes:number;totalBytes:number;files:number;checks:number;errors:number;speed:string;eta:string;current:string};
-export function parseProgress(line:string,prior:Progress={bytes:0,totalBytes:0,files:0,checks:0,errors:0,speed:'—',eta:'—',current:''}):Progress{const out={...prior};const b=line.match(/Transferred:\s*([\d.]+\s*[kMGT]?Bytes)\s*\/\s*([\d.]+\s*[kMGT]?Bytes).*?,\s*([^,]+\/s),\s*ETA\s*([^,]+)/i);if(b){out.bytes=parseBytes(b[1]);out.totalBytes=parseBytes(b[2]);out.speed=b[3].trim();out.eta=b[4].trim();}const f=line.match(/Transferred:\s*(\d+)\s*\/\s*\d+.*?,\s*\d+%/i);if(f)out.files=Number(f[1]);const c=line.match(/Checks:\s*(\d+)/i);if(c)out.checks=Number(c[1]);const e=line.match(/Errors:\s*(\d+)/i);if(e)out.errors=Number(e[1]);const cur=line.match(/\*\s+(.+?):\s+\d+%/);if(cur)out.current=cur[1].trim();return out;}
-function parseBytes(v:string){const m=v.match(/([\d.]+)\s*([kMGT]?Bytes)/i);if(!m)return 0;const unit=m[2].toLowerCase(),pow={bytes:0,kbytes:1,mbytes:2,gbytes:3,tbytes:4}[unit]??0;return Math.round(Number(m[1])*1024**pow);}
-export function findRclone(explicit?:string){const winget=process.platform==='win32'?path.join(process.env.LOCALAPPDATA??'','Microsoft','WinGet','Packages'):'';let discovered:string[]=[];if(winget&&existsSync(winget))try{for(const d of readdirSync(winget))if(/^Rclone\.Rclone_/i.test(d)){const root=path.join(winget,d);for(const v of readdirSync(root))if(/^rclone-v/i.test(v))discovered.push(path.join(root,v,'rclone.exe'))}}catch{}const candidates=[explicit,process.env.RCLONE_PATH,...discovered,process.platform==='win32'?'rclone.exe':'rclone'].filter(Boolean)as string[];for(const c of candidates){const r=spawnSync(c,['version'],{encoding:'utf8',windowsHide:true});if(r.status===0)return{path:c,version:(r.stdout.split(/\r?\n/)[0]||'rclone').trim()};}return null;}
-export function listRemotes(exe:string){const r=spawnSync(exe,['listremotes'],{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(redact(r.stderr||'Unable to list rclone remotes'));return r.stdout.split(/\r?\n/).map(x=>x.replace(/:$/,'').trim()).filter(Boolean);}
-export function remoteAbout(exe:string,remote:string){validateRemote(remote);const r=spawnSync(exe,['about',`${remote}:`,'--json'],{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(redact(r.stderr||'Unable to inspect remote'));return JSON.parse(r.stdout);}
-export async function testDestination(input:string){const destination=validateDestination(input);await access(path.dirname(destination),constants.R_OK);await mkdir(destination,{recursive:true});const root=path.join(destination,'Cornerstone-Lifeboat');for(const part of['drive','manifests','logs','reports','app-state'])await mkdir(path.join(root,part),{recursive:true});const temp=await mkdtemp(path.join(destination,'.lifeboat-test-'));try{await writeFile(path.join(temp,'probe'),'ok',{flag:'wx'});const disk=await statfs(destination),cloud=/onedrive|dropbox|google drive/i.test(destination);return{path:destination,freeBytes:disk.bavail*disk.bsize,totalBytes:disk.blocks*disk.bsize,warning:cloud?'Destination appears to be inside a cloud-synchronised folder. Confirm this is intentional.':null};}finally{await rm(temp,{recursive:true,force:true});}}
-export class RcloneProcess{private child:ChildProcessWithoutNullStreams|null=null;start(exe:string,args:string[],handlers:{line:(line:string)=>void;exit:(code:number|null,signal:NodeJS.Signals|null)=>void}){if(this.child)throw new Error('A backup is already running');this.child=spawn(exe,args,{shell:false,windowsHide:true});let carry='';const read=(b:Buffer)=>{carry+=b.toString();const lines=carry.split(/\r?\n|\r/);carry=lines.pop()??'';for(const line of lines)if(line)handlers.line(redact(line));};this.child.stdout.on('data',read);this.child.stderr.on('data',read);this.child.on('exit',(c,s)=>{this.child=null;handlers.exit(c,s);});}pause(){if(!this.child)return false;return this.child.kill('SIGTERM');}running(){return!!this.child;}}
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { access, constants, mkdir, mkdtemp, rm, statfs, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { redact } from "./security";
+export const REMOTE_RE = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,63}$/;
+export function validateRemote(name: string) {
+  if (!REMOTE_RE.test(name) || name.includes("..")) throw new Error("Invalid rclone remote name");
+  return name;
+}
+export function validateDestination(p: string) {
+  const resolved = path.resolve(p);
+  if (!path.isAbsolute(resolved)) throw new Error("Destination must be an absolute path");
+  if (resolved === path.parse(resolved).root)
+    throw new Error("Choose a folder, not a filesystem root");
+  return resolved;
+}
+export function copyArgs(
+  remote: string,
+  destination: string,
+  options: { transfers?: number; checkers?: number } = {},
+) {
+  validateRemote(remote);
+  const dest = validateDestination(destination);
+  return [
+    "copy",
+    `${remote}:`,
+    path.join(dest, "Cornerstone-Lifeboat", "drive"),
+    "--create-empty-src-dirs",
+    "--drive-export-formats",
+    "docx,xlsx,pptx,pdf",
+    "--transfers",
+    String(options.transfers ?? 4),
+    "--checkers",
+    String(options.checkers ?? 8),
+    "--retries",
+    "10",
+    "--low-level-retries",
+    "20",
+    "--stats",
+    "10s",
+    "--stats-one-line",
+    "--log-level",
+    "INFO",
+  ];
+}
+export function checkArgs(remote: string, destination: string) {
+  validateRemote(remote);
+  return [
+    "check",
+    `${remote}:`,
+    path.join(validateDestination(destination), "Cornerstone-Lifeboat", "drive"),
+    "--one-way",
+    "--download",
+    "--drive-export-formats",
+    "docx,xlsx,pptx,pdf",
+    "--checkers",
+    "8",
+    "--combined",
+    "-",
+  ];
+}
+export type Progress = {
+  bytes: number;
+  totalBytes: number;
+  files: number;
+  checks: number;
+  errors: number;
+  speed: string;
+  eta: string;
+  current: string;
+};
+export function parseProgress(
+  line: string,
+  prior: Progress = {
+    bytes: 0,
+    totalBytes: 0,
+    files: 0,
+    checks: 0,
+    errors: 0,
+    speed: "—",
+    eta: "—",
+    current: "",
+  },
+): Progress {
+  const out = { ...prior };
+  const b = line.match(
+    /Transferred:\s*([\d.]+\s*[kMGT]?Bytes)\s*\/\s*([\d.]+\s*[kMGT]?Bytes).*?,\s*([^,]+\/s),\s*ETA\s*([^,]+)/i,
+  );
+  if (b) {
+    out.bytes = parseBytes(b[1]);
+    out.totalBytes = parseBytes(b[2]);
+    out.speed = b[3].trim();
+    out.eta = b[4].trim();
+  }
+  const f = line.match(/Transferred:\s*(\d+)\s*\/\s*\d+.*?,\s*\d+%/i);
+  if (f) out.files = Number(f[1]);
+  const c = line.match(/Checks:\s*(\d+)/i);
+  if (c) out.checks = Number(c[1]);
+  const e = line.match(/Errors:\s*(\d+)/i);
+  if (e) out.errors = Number(e[1]);
+  const cur = line.match(/\*\s+(.+?):\s+\d+%/);
+  if (cur) out.current = cur[1].trim();
+  return out;
+}
+function parseBytes(v: string) {
+  const m = v.match(/([\d.]+)\s*([kMGT]?Bytes)/i);
+  if (!m) return 0;
+  const unit = m[2].toLowerCase(),
+    pow = { bytes: 0, kbytes: 1, mbytes: 2, gbytes: 3, tbytes: 4 }[unit] ?? 0;
+  return Math.round(Number(m[1]) * 1024 ** pow);
+}
+export function findRclone(explicit?: string) {
+  const winget =
+    process.platform === "win32"
+      ? path.join(process.env.LOCALAPPDATA ?? "", "Microsoft", "WinGet", "Packages")
+      : "";
+  let discovered: string[] = [];
+  if (winget && existsSync(winget))
+    try {
+      for (const d of readdirSync(winget))
+        if (/^Rclone\.Rclone_/i.test(d)) {
+          const root = path.join(winget, d);
+          for (const v of readdirSync(root))
+            if (/^rclone-v/i.test(v)) discovered.push(path.join(root, v, "rclone.exe"));
+        }
+    } catch {}
+  const candidates = [
+    explicit,
+    process.env.RCLONE_PATH,
+    ...discovered,
+    process.platform === "win32" ? "rclone.exe" : "rclone",
+  ].filter(Boolean) as string[];
+  for (const c of candidates) {
+    const r = spawnSync(c, ["version"], { encoding: "utf8", windowsHide: true });
+    if (r.status === 0)
+      return { path: c, version: (r.stdout.split(/\r?\n/)[0] || "rclone").trim() };
+  }
+  return null;
+}
+export function listRemotes(exe: string) {
+  const r = spawnSync(exe, ["listremotes"], { encoding: "utf8", windowsHide: true });
+  if (r.status !== 0) throw new Error(redact(r.stderr || "Unable to list rclone remotes"));
+  return r.stdout
+    .split(/\r?\n/)
+    .map((x) => x.replace(/:$/, "").trim())
+    .filter(Boolean);
+}
+export function remoteAbout(exe: string, remote: string) {
+  validateRemote(remote);
+  const r = spawnSync(exe, ["about", `${remote}:`, "--json"], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  if (r.status !== 0) throw new Error(redact(r.stderr || "Unable to inspect remote"));
+  return JSON.parse(r.stdout);
+}
+export async function testDestination(input: string) {
+  const destination = validateDestination(input);
+  await access(path.dirname(destination), constants.R_OK);
+  await mkdir(destination, { recursive: true });
+  const root = path.join(destination, "Cornerstone-Lifeboat");
+  for (const part of ["drive", "manifests", "logs", "reports", "app-state"])
+    await mkdir(path.join(root, part), { recursive: true });
+  const temp = await mkdtemp(path.join(destination, ".lifeboat-test-"));
+  try {
+    await writeFile(path.join(temp, "probe"), "ok", { flag: "wx" });
+    const disk = await statfs(destination),
+      cloud = /onedrive|dropbox|google drive/i.test(destination);
+    return {
+      path: destination,
+      freeBytes: disk.bavail * disk.bsize,
+      totalBytes: disk.blocks * disk.bsize,
+      warning: cloud
+        ? "Destination appears to be inside a cloud-synchronised folder. Confirm this is intentional."
+        : null,
+    };
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+}
+export class RcloneProcess {
+  private child: ChildProcessWithoutNullStreams | null = null;
+  start(
+    exe: string,
+    args: string[],
+    handlers: {
+      line: (line: string) => void;
+      exit: (code: number | null, signal: NodeJS.Signals | null) => void;
+    },
+  ) {
+    if (this.child) throw new Error("A backup is already running");
+    this.child = spawn(exe, args, { shell: false, windowsHide: true });
+    let carry = "";
+    const read = (b: Buffer) => {
+      carry += b.toString();
+      const lines = carry.split(/\r?\n|\r/);
+      carry = lines.pop() ?? "";
+      for (const line of lines) if (line) handlers.line(redact(line));
+    };
+    this.child.stdout.on("data", read);
+    this.child.stderr.on("data", read);
+    this.child.on("exit", (c, s) => {
+      this.child = null;
+      handlers.exit(c, s);
+    });
+  }
+  pause() {
+    if (!this.child) return false;
+    return this.child.kill("SIGTERM");
+  }
+  running() {
+    return !!this.child;
+  }
+}

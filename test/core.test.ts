@@ -1,5 +1,99 @@
-import{afterEach,describe,expect,it}from'vitest';import{mkdtempSync,rmSync}from'node:fs';import{tmpdir}from'node:os';import path from'node:path';import{LifeboatDatabase}from'../electron/database';import{redact,validateAccountRoles}from'../electron/security';import{exportReports}from'../electron/report';import type{InventorySnapshot}from'../electron/types';
-let dirs:string[]=[];afterEach(()=>{for(const d of dirs)rmSync(d,{recursive:true,force:true});dirs=[]});const dir=()=>{const d=mkdtempSync(path.join(tmpdir(),'lifeboat-'));dirs.push(d);return d};
-describe('security',()=>{it('validates account roles',()=>{expect(()=>validateAccountRoles('a@x.test','a@x.test',['b@x.test'])).toThrow(/different/);expect(()=>validateAccountRoles('a@x.test','c@x.test',['b@x.test'])).toThrow(/approved/);expect(validateAccountRoles('a@x.test','B@x.test',['b@x.test'])).toBe(true)});it('redacts secrets',()=>{expect(redact('Bearer abc.def')).not.toContain('abc.def');expect(redact('{"refresh_token":"1//secret"}')).not.toContain('secret')})});
-describe('queue',()=>{it('is idempotent and transitions atomically',()=>{const db=new LifeboatDatabase(path.join(dir(),'x.db'));const x={module:'gmail',sourceAccount:'s',destinationAccount:'d',sourceItemId:'m1'};expect(db.enqueue(x).inserted).toBe(true);expect(db.enqueue(x).inserted).toBe(false);const row=db.exportRows()[0]as any;expect(db.transition(row.id,'discovered','queued')).toBe(true);expect(db.transition(row.id,'discovered','queued')).toBe(false);db.close()});it('recovers interrupted items',()=>{const p=path.join(dir(),'x.db');let db=new LifeboatDatabase(p);const x=db.enqueue({module:'drive',sourceAccount:'s',destinationAccount:'d',sourceItemId:'1'});db.transition(x.id,'discovered','copying');db.close();db=new LifeboatDatabase(p);expect((db.exportRows()[0]as any).status).toBe('failed-retryable');db.close()})});
-describe('reports',()=>{it('writes JSON, CSV and HTML',async()=>{const d=dir();const s:InventorySnapshot={runId:'1',createdAt:new Date().toISOString(),account:'source@example.test',gmail:{messages:2,threads:1,labels:[]},drive:{usageBytes:1,limitBytes:2,files:1,folders:0,googleNative:0,owned:1,shared:0,bytes:1},contacts:{contacts:1,groups:0,otherContacts:0},calendar:{calendars:1,owned:1,shared:0,events:1,recurring:0,future:1},errors:[]};await exportReports(d,s,[]);const files=await(await import('node:fs/promises')).readdir(d);expect(files.map(x=>path.extname(x)).sort()).toEqual(['.csv','.html','.json'])})});
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { LifeboatDatabase } from "../electron/database";
+import { redact, validateAccountRoles } from "../electron/security";
+import { exportReports } from "../electron/report";
+import type { InventorySnapshot } from "../electron/types";
+let dirs: string[] = [];
+afterEach(() => {
+  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  dirs = [];
+});
+const dir = () => {
+  const d = mkdtempSync(path.join(tmpdir(), "lifeboat-"));
+  dirs.push(d);
+  return d;
+};
+describe("security", () => {
+  it("validates account roles", () => {
+    expect(() => validateAccountRoles("a@x.test", "a@x.test", ["b@x.test"])).toThrow(/different/);
+    expect(() => validateAccountRoles("a@x.test", "c@x.test", ["b@x.test"])).toThrow(/approved/);
+    expect(validateAccountRoles("a@x.test", "B@x.test", ["b@x.test"])).toBe(true);
+  });
+  it("redacts secrets", () => {
+    expect(redact("Bearer abc.def")).not.toContain("abc.def");
+    expect(redact('{"refresh_token":"1//secret"}')).not.toContain("secret");
+  });
+});
+describe("queue", () => {
+  it("is idempotent and transitions atomically", () => {
+    const db = new LifeboatDatabase(path.join(dir(), "x.db"));
+    const x = { module: "gmail", sourceAccount: "s", destinationAccount: "d", sourceItemId: "m1" };
+    expect(db.enqueue(x).inserted).toBe(true);
+    expect(db.enqueue(x).inserted).toBe(false);
+    const row = db.exportRows()[0] as any;
+    expect(db.transition(row.id, "discovered", "queued")).toBe(true);
+    expect(db.transition(row.id, "discovered", "queued")).toBe(false);
+    db.close();
+  });
+  it("recovers interrupted items", () => {
+    const p = path.join(dir(), "x.db");
+    let db = new LifeboatDatabase(p);
+    const x = db.enqueue({
+      module: "drive",
+      sourceAccount: "s",
+      destinationAccount: "d",
+      sourceItemId: "1",
+    });
+    db.transition(x.id, "discovered", "copying");
+    db.close();
+    db = new LifeboatDatabase(p);
+    expect((db.exportRows()[0] as any).status).toBe("failed-retryable");
+    db.close();
+  });
+});
+describe("schema migrations", () => {
+  it("records and preserves an explicit schema version", () => {
+    const file = path.join(dir(), "schema.db");
+    let db = new LifeboatDatabase(file);
+    expect(db.schemaVersion()).toBe(LifeboatDatabase.SCHEMA_VERSION);
+    db.close();
+    db = new LifeboatDatabase(file);
+    expect(db.schemaVersion()).toBe(LifeboatDatabase.SCHEMA_VERSION);
+    db.close();
+  });
+});
+describe("reports", () => {
+  it("writes JSON, CSV and HTML", async () => {
+    const d = dir();
+    const s: InventorySnapshot = {
+      runId: "1",
+      createdAt: new Date().toISOString(),
+      account: "source@example.test",
+      gmail: { messages: 2, threads: 1, labels: [] },
+      drive: {
+        usageBytes: 1,
+        limitBytes: 2,
+        files: 1,
+        folders: 0,
+        googleNative: 0,
+        owned: 1,
+        shared: 0,
+        bytes: 1,
+      },
+      contacts: { contacts: 1, groups: 0, otherContacts: 0 },
+      calendar: { calendars: 1, owned: 1, shared: 0, events: 1, recurring: 0, future: 1 },
+      errors: [],
+    };
+    await exportReports(d, s, []);
+    const files = await (await import("node:fs/promises")).readdir(d);
+    expect(files.map((x) => path.extname(x)).sort()).toEqual([
+      ".csv",
+      ".html",
+      ".json",
+      ".json",
+    ]);
+  });
+});

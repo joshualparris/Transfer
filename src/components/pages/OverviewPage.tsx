@@ -48,11 +48,11 @@ export default function OverviewPage({
           label="Manifest items"
           value={new Intl.NumberFormat().format(data.drive.stats.discovered)}
         />
-        <Metric label="Externally owned" value={new Intl.NumberFormat().format(data.drive.stats.shared)} />
         <Metric
-          label="Latest backup"
-          value={data.drive.jobs[0]?.status ?? "Not started"}
+          label="Externally owned"
+          value={new Intl.NumberFormat().format(data.drive.stats.shared)}
         />
+        <Metric label="Latest backup" value={data.drive.jobs[0]?.status ?? "Not started"} />
       </div>
       <section className="panel">
         <Check

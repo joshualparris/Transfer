@@ -5,13 +5,11 @@ import path from "node:path";
 import { authFor } from "./google";
 import type { LifeboatDatabase } from "./database";
 import { redact } from "./security";
-const h = (v = "") =>
-  createHash("sha256").update(v.trim().toLowerCase()).digest("hex");
-const rawHash=(raw:string)=>createHash("sha256").update(Buffer.from(raw,"base64url")).digest("hex");
+const h = (v = "") => createHash("sha256").update(v.trim().toLowerCase()).digest("hex");
+const rawHash = (raw: string) =>
+  createHash("sha256").update(Buffer.from(raw, "base64url")).digest("hex");
 const header = (m: gmail_v1.Schema$Message, n: string) =>
-  (m.payload?.headers ?? []).find(
-    (x) => x.name?.toLowerCase() === n.toLowerCase(),
-  )?.value ?? "";
+  (m.payload?.headers ?? []).find((x) => x.name?.toLowerCase() === n.toLowerCase())?.value ?? "";
 function parts(m: gmail_v1.Schema$Message) {
   let attachments = 0;
   const meta: string[] = [];
@@ -36,22 +34,13 @@ export function semanticFingerprint(x: {
   attachments?: string;
 }) {
   return h(
-    [
-      x.messageId,
-      x.date,
-      x.from,
-      x.to,
-      x.cc,
-      x.subject,
-      String(x.size ?? 0),
-      x.attachments,
-    ].join("\n"),
+    [x.messageId, x.date, x.from, x.to, x.cc, x.subject, String(x.size ?? 0), x.attachments].join(
+      "\n",
+    ),
   );
 }
 export function retryDelay(attempt: number) {
-  return (
-    Math.min(64_000, 2 ** Math.min(attempt, 6) * 1000) + randomInt(0, 1001)
-  );
+  return Math.min(64_000, 2 ** Math.min(attempt, 6) * 1000) + randomInt(0, 1001);
 }
 export function isRetryable(e: any) {
   const code = Number(e?.code ?? e?.response?.status ?? 0),
@@ -59,13 +48,28 @@ export function isRetryable(e: any) {
   return (
     [429, 500, 502, 503, 504].includes(code) ||
     (code === 403 &&
-      ["rateLimitExceeded", "userRateLimitExceeded", "backendError"].includes(
-        reason,
-      )) ||
+      ["rateLimitExceeded", "userRateLimitExceeded", "backendError"].includes(reason)) ||
     ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN"].includes(e?.code)
   );
 }
-export async function withRetry<T>(fn:()=>Promise<T>,onRetry?:(attempt:number,error:string)=>void,maxAttempts=5):Promise<T>{let last:unknown;for(let attempt=0;attempt<maxAttempts;attempt++){try{return await fn()}catch(e){last=e;if(!isRetryable(e)||attempt===maxAttempts-1)throw e;onRetry?.(attempt+1,redact(e));await new Promise(resolve=>setTimeout(resolve,retryDelay(attempt)))}}throw last}
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  onRetry?: (attempt: number, error: string) => void,
+  maxAttempts = 5,
+): Promise<T> {
+  let last: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      if (!isRetryable(e) || attempt === maxAttempts - 1) throw e;
+      onRetry?.(attempt + 1, redact(e));
+      await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
+    }
+  }
+  throw last;
+}
 export async function discoverGmail(
   db: LifeboatDatabase,
   input: {
@@ -79,35 +83,39 @@ export async function discoverGmail(
   onProgress?: (x: any) => void,
 ) {
   const api = google.gmail({ version: "v1", auth: await authFor("source") }),
-    query =
-      (input.query?.trim() || "-in:spam -in:trash") +
-      (input.includeDrafts ? "" : " -in:drafts");
+    query = `${input.query?.trim() || "-in:spam -in:trash"} -in:drafts`;
   let token: string | undefined,
     count = 0;
   do {
-    const r = await withRetry(()=>api.users.messages.list({
-      userId: "me",
-      maxResults: 500,
-      pageToken: token,
-      q: query,
-      includeSpamTrash: false,
-    }), (attempt)=>onProgress?.({operation:'Retrying Gmail message list',attempt}));
+    const r = await withRetry(
+      () =>
+        api.users.messages.list({
+          userId: "me",
+          maxResults: 500,
+          pageToken: token,
+          q: query,
+          includeSpamTrash: false,
+        }),
+      (attempt) => onProgress?.({ operation: "Retrying Gmail message list", attempt }),
+    );
     for (const ref of r.data.messages ?? []) {
       if (!ref.id) continue;
       const m = (
-          await withRetry(async()=>await (api.users.messages.get as any)({
-            userId: "me",
-            id: ref.id,
-            format: "metadata",
-            metadataHeaders: [
-              "Message-ID",
-              "Date",
-              "From",
-              "To",
-              "Cc",
-              "Subject",
-            ],
-          }), (attempt)=>onProgress?.({operation:'Retrying Gmail message metadata',attempt,discovered:count}))
+          await withRetry(
+            async () =>
+              await (api.users.messages.get as any)({
+                userId: "me",
+                id: ref.id,
+                format: "metadata",
+                metadataHeaders: ["Message-ID", "Date", "From", "To", "Cc", "Subject"],
+              }),
+            (attempt) =>
+              onProgress?.({
+                operation: "Retrying Gmail message metadata",
+                attempt,
+                discovered: count,
+              }),
+          )
         ).data,
         p = parts(m);
       db.upsertGmailMessage({
@@ -135,19 +143,32 @@ export async function discoverGmail(
   if (input.includeDrafts) {
     let dToken: string | undefined;
     do {
-      const r = await withRetry(()=>api.users.drafts.list({
-        userId: "me",
-        maxResults: 500,
-        pageToken: dToken,
-      }), (attempt)=>onProgress?.({operation:'Retrying Gmail draft list',attempt}));
+      const r = await withRetry(
+        () =>
+          api.users.drafts.list({
+            userId: "me",
+            maxResults: 500,
+            pageToken: dToken,
+          }),
+        (attempt) => onProgress?.({ operation: "Retrying Gmail draft list", attempt }),
+      );
       for (const d of r.data.drafts ?? []) {
         if (!d.id) continue;
         const full = (
-            await withRetry(async()=>await (api.users.drafts.get as any)({
-              userId: "me",
-              id: d.id,
-              format: "metadata",
-            }), (attempt)=>onProgress?.({operation:'Retrying Gmail draft metadata',attempt,discovered:count}))
+            await withRetry(
+              async () =>
+                await (api.users.drafts.get as any)({
+                  userId: "me",
+                  id: d.id,
+                  format: "metadata",
+                }),
+              (attempt) =>
+                onProgress?.({
+                  operation: "Retrying Gmail draft metadata",
+                  attempt,
+                  discovered: count,
+                }),
+            )
           ).data,
           m = full.message;
         if (!m?.id) continue;
@@ -181,7 +202,14 @@ function fromDomain(v: string) {
   const m = v.match(/@([\w.-]+)/);
   return m?.[1]?.toLowerCase() ?? "";
 }
-function rawHeader(raw:string,name:string){const text=Buffer.from(raw,'base64url').subarray(0,65536).toString('utf8'),head=text.split(/\r?\n\r?\n/,1)[0].replace(/\r?\n[ \t]+/g,' '),line=head.split(/\r?\n/).find(x=>x.slice(0,x.indexOf(':')).toLowerCase()===name.toLowerCase());return line?.slice(line.indexOf(':')+1).trim()??''}
+function rawHeader(raw: string, name: string) {
+  const text = Buffer.from(raw, "base64url").subarray(0, 65536).toString("utf8"),
+    head = text.split(/\r?\n\r?\n/, 1)[0].replace(/\r?\n[ \t]+/g, " "),
+    line = head
+      .split(/\r?\n/)
+      .find((x) => x.slice(0, x.indexOf(":")).toLowerCase() === name.toLowerCase());
+  return line?.slice(line.indexOf(":") + 1).trim() ?? "";
+}
 const DIRECT_SYSTEM = new Set(["INBOX", "UNREAD", "STARRED", "IMPORTANT"]);
 const STATE_NAMES: Record<string, string> = {
   SENT: "Sent",
@@ -205,9 +233,7 @@ export async function ensureLabels(
       source.users.labels.list({ userId: "me" }),
       dest.users.labels.list({ userId: "me" }),
     ]);
-  const existing = new Map(
-    (d.data.labels ?? []).map((x) => [x.name?.toLowerCase(), x.id!]),
-  );
+  const existing = new Map((d.data.labels ?? []).map((x) => [x.name?.toLowerCase(), x.id!]));
   for (const label of s.data.labels ?? []) {
     if (!label.id || !label.name) continue;
     if (DIRECT_SYSTEM.has(label.id)) {
@@ -291,7 +317,7 @@ export class GmailRunner {
       );
     let done = 0;
     while (!this.stopped) {
-      const rows = db.nextGmail(2,sourceSubject,destinationSubject);
+      const rows = db.nextGmail(2, sourceSubject, destinationSubject, runId);
       if (!rows.length) break;
       for (const row of rows) {
         if (this.stopped) break;
@@ -328,16 +354,75 @@ export class GmailRunner {
               size: row.size_estimate,
               attachments: row.attachment_fingerprint,
             });
-          if(!isDraft){const messageId=rawHeader(raw,'Message-ID');if(messageId){const candidates=await dest.users.messages.list({userId:'me',q:`rfc822msgid:${messageId}`,maxResults:10});const matches: gmail_v1.Schema$Message[]=[];for(const c of candidates.data.messages??[]){if(!c.id)continue;const m=(await dest.users.messages.get({userId:'me',id:c.id,format:'metadata',metadataHeaders:['Message-ID','Date','From','Subject']})).data;if(h(header(m,'Message-ID'))===row.rfc_message_id_hash&&h(header(m,'Date'))===row.date_hash&&fromDomain(header(m,'From'))===row.from_domain&&h(header(m,'Subject'))===row.subject_hash)matches.push(m)}if(matches.length===1&&matches[0].id){db.completeGmailMessage(row.id,{destinationMessageId:matches[0].id,destinationThreadId:matches[0].threadId??undefined,rawSha256:rawSha,fingerprint,destinationLabels:matches[0].labelIds??[]});db.verifyGmailMessage(row.id,true,{recoveredAfterUncertainInsert:true,matchedBy:['Message-ID','Date','From domain','Subject']});done++;onProgress({operation:'Recovered existing destination copy',processed:done,stats:db.gmailStats()});continue}if(matches.length>1){db.failGmailMessage(row.id,false,'ambiguous-duplicate','Multiple destination messages match independent metadata');continue}}}
+          if (!isDraft) {
+            const messageId = rawHeader(raw, "Message-ID");
+            if (messageId) {
+              const candidates = await dest.users.messages.list({
+                userId: "me",
+                q: `rfc822msgid:${messageId}`,
+                maxResults: 10,
+              });
+              const matches: gmail_v1.Schema$Message[] = [];
+              for (const c of candidates.data.messages ?? []) {
+                if (!c.id) continue;
+                const m = (
+                  await dest.users.messages.get({
+                    userId: "me",
+                    id: c.id,
+                    format: "metadata",
+                    metadataHeaders: ["Message-ID", "Date", "From", "Subject"],
+                  })
+                ).data;
+                if (
+                  h(header(m, "Message-ID")) === row.rfc_message_id_hash &&
+                  h(header(m, "Date")) === row.date_hash &&
+                  fromDomain(header(m, "From")) === row.from_domain &&
+                  h(header(m, "Subject")) === row.subject_hash
+                )
+                  matches.push(m);
+              }
+              if (matches.length === 1 && matches[0].id) {
+                db.completeGmailMessage(row.id, {
+                  destinationMessageId: matches[0].id,
+                  destinationThreadId: matches[0].threadId ?? undefined,
+                  rawSha256: rawSha,
+                  fingerprint,
+                  destinationLabels: matches[0].labelIds ?? [],
+                });
+                db.verifyGmailMessage(row.id, true, {
+                  recoveredAfterUncertainInsert: true,
+                  matchedBy: ["Message-ID", "Date", "From domain", "Subject"],
+                });
+                done++;
+                onProgress({
+                  operation: "Recovered existing destination copy",
+                  processed: done,
+                  stats: db.gmailStats(),
+                });
+                continue;
+              }
+              if (matches.length > 1) {
+                db.failGmailMessage(
+                  row.id,
+                  false,
+                  "ambiguous-duplicate",
+                  "Multiple destination messages match independent metadata",
+                );
+                continue;
+              }
+            }
+          }
           if (archivePath)
-            await archiveRaw(
-              archivePath,
-              row.source_message_id,
-              row.internal_date,
-              raw,
-              rawSha,
+            await archiveRaw(archivePath, row.source_message_id, row.internal_date, raw, rawSha);
+          if (Buffer.from(raw, "base64url").byteLength > 35 * 1024 * 1024) {
+            db.failGmailMessage(
+              row.id,
+              false,
+              "over-upload-limit",
+              "Raw message exceeds the documented Gmail API upload limit; preserve it in the optional archive",
             );
-          if(Buffer.from(raw,'base64url').byteLength>35*1024*1024){db.failGmailMessage(row.id,false,'over-upload-limit','Raw message exceeds the documented Gmail API upload limit; preserve it in the optional archive');continue}
+            continue;
+          }
           if (isDraft) {
             const created = await dest.users.drafts.create({
               userId: "me",
@@ -359,14 +444,10 @@ export class GmailRunner {
                 format: "metadata",
               })
             ).data;
-            db.verifyGmailMessage(
-              row.id,
-              !!verify.message?.labelIds?.includes("DRAFT"),
-              {
-                draftId: created.data.id,
-                stillDraft: verify.message?.labelIds?.includes("DRAFT"),
-              },
-            );
+            db.verifyGmailMessage(row.id, !!verify.message?.labelIds?.includes("DRAFT"), {
+              draftId: created.data.id,
+              stillDraft: verify.message?.labelIds?.includes("DRAFT"),
+            });
           } else {
             const labelIds = (JSON.parse(row.source_labels_json) as string[])
               .map((x) => maps.get(x))
@@ -385,8 +466,7 @@ export class GmailRunner {
                     internalDateSource: "dateHeader",
                     requestBody: { raw, labelIds },
                   });
-            if (!created.data.id)
-              throw new Error("Destination insert did not return a message ID");
+            if (!created.data.id) throw new Error("Destination insert did not return a message ID");
             db.completeGmailMessage(row.id, {
               destinationMessageId: created.data.id,
               destinationThreadId: created.data.threadId ?? undefined,
@@ -404,8 +484,7 @@ export class GmailRunner {
               ).data,
               att = parts(v),
               details = {
-                messageId:
-                  h(header(v, "Message-ID")) === row.rfc_message_id_hash,
+                messageId: h(header(v, "Message-ID")) === row.rfc_message_id_hash,
                 dateHeader: h(header(v, "Date")) === row.date_hash,
                 fromDomain: fromDomain(header(v, "From")) === row.from_domain,
                 subject: h(header(v, "Subject")) === row.subject_hash,
@@ -436,9 +515,7 @@ export class GmailRunner {
             retryable && attempt < 8,
             String(e?.code ?? "unknown"),
             redact(e),
-            retryable
-              ? new Date(Date.now() + retryDelay(attempt)).toISOString()
-              : undefined,
+            retryable ? new Date(Date.now() + retryDelay(attempt)).toISOString() : undefined,
           );
         }
       }
@@ -472,12 +549,31 @@ async function archiveRaw(
   await rename(temp, final);
   await writeFile(`${final}.sha256`, sha, { flag: "wx" }).catch(() => {});
 }
-export async function cleanupArchiveTemps(root:string){if(!root)return 0;const base=path.resolve(root,'gmail-archive');let removed=0;async function walk(dir:string){let entries;try{entries=await readdir(dir,{withFileTypes:true})}catch{return}for(const e of entries){const full=path.resolve(dir,e.name);if(!full.startsWith(base+path.sep))continue;if(e.isDirectory())await walk(full);else if(/\.\d+\.tmp$/.test(e.name)){await unlink(full).catch(()=>{});removed++}}}await walk(base);return removed}
-export async function updateVacation(
-  destination: string,
-  subject: string,
-  body: string,
-) {
+export async function cleanupArchiveTemps(root: string) {
+  if (!root) return 0;
+  const base = path.resolve(root, "gmail-archive");
+  let removed = 0;
+  async function walk(dir: string) {
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const full = path.resolve(dir, e.name);
+      if (!full.startsWith(base + path.sep)) continue;
+      if (e.isDirectory()) await walk(full);
+      else if (/\.\d+\.tmp$/.test(e.name)) {
+        await unlink(full).catch(() => {});
+        removed++;
+      }
+    }
+  }
+  await walk(base);
+  return removed;
+}
+export async function updateVacation(destination: string, subject: string, body: string) {
   const api = google.gmail({ version: "v1", auth: await authFor("source") });
   return (
     await api.users.settings.updateVacation({
@@ -509,4 +605,47 @@ export async function forwardingAudit() {
       "Google restricts forwardingAddresses.create to service accounts with domain-wide delegation. Lifeboat does not request that authority.",
   };
 }
-export async function verifyGmailAggregate(db:LifeboatDatabase,sourceSubject:string,destinationSubject:string){const api=google.gmail({version:'v1',auth:await authFor('destination')}),maps=new Map(db.labelMaps(sourceSubject,destinationSubject).map(x=>[x.source_label_id,x])),counts=db.gmailLabelCounts(sourceSubject,destinationSubject),perLabel=[];for(const c of counts){const map=maps.get(c.source_label_id);if(!map?.destination_label_id){perLabel.push({sourceLabel:c.source_label_id,migrated:c.count,status:'unmapped'});continue}try{const l=await api.users.labels.get({userId:'me',id:map.destination_label_id});perLabel.push({sourceLabel:c.source_label_id,destinationLabel:map.destination_name,migrated:c.count,destinationTotal:l.data.messagesTotal??0,status:(l.data.messagesTotal??0)>=c.count?'verified':'mismatch'})}catch(e){perLabel.push({sourceLabel:c.source_label_id,migrated:c.count,status:'error',error:redact(e)})}}const stats=db.gmailStats(),problems=perLabel.filter(x=>x.status!=='verified').length;return{status:(stats.failed??0)>0||problems>0?'verified-with-limitations':'verified',pairedVerified:stats.verified,failed:stats.failed,perLabel}}
+export async function verifyGmailAggregate(
+  db: LifeboatDatabase,
+  sourceSubject: string,
+  destinationSubject: string,
+) {
+  const api = google.gmail({ version: "v1", auth: await authFor("destination") }),
+    maps = new Map(
+      db.labelMaps(sourceSubject, destinationSubject).map((x) => [x.source_label_id, x]),
+    ),
+    counts = db.gmailLabelCounts(sourceSubject, destinationSubject),
+    perLabel = [];
+  for (const c of counts) {
+    const map = maps.get(c.source_label_id);
+    if (!map?.destination_label_id) {
+      perLabel.push({ sourceLabel: c.source_label_id, migrated: c.count, status: "unmapped" });
+      continue;
+    }
+    try {
+      const l = await api.users.labels.get({ userId: "me", id: map.destination_label_id });
+      perLabel.push({
+        sourceLabel: c.source_label_id,
+        destinationLabel: map.destination_name,
+        migrated: c.count,
+        destinationTotal: l.data.messagesTotal ?? 0,
+        status: (l.data.messagesTotal ?? 0) >= c.count ? "verified" : "mismatch",
+      });
+    } catch (e) {
+      perLabel.push({
+        sourceLabel: c.source_label_id,
+        migrated: c.count,
+        status: "error",
+        error: redact(e),
+      });
+    }
+  }
+  const stats = db.gmailStats(),
+    problems = perLabel.filter((x) => x.status !== "verified").length;
+  return {
+    status: (stats.failed ?? 0) > 0 || problems > 0 ? "verified-with-limitations" : "verified",
+    pairedVerified: stats.verified,
+    failed: stats.failed,
+    perLabel,
+  };
+}

@@ -1,6 +1,146 @@
-import{google}from'googleapis';import{authFor}from'./google';import{classifyShared,deterministicName,exportFor,safeSegment}from'./drive-policy';import type{LifeboatDatabase}from'./database';
-type FileRow={id:string;name:string;mimeType:string;parents:string[];size:number|null;createdTime:string|null;modifiedTime:string|null;md5:string|null;owned:boolean;owners:Array<{displayName?:string|null;emailAddress?:string|null}>;shared:boolean;trashed:boolean;shortcutTarget:string|null;canDownload:boolean;canCopy:boolean;permissions:Array<{emailAddress?:string|null;role?:string|null;type?:string|null}>};
-export async function discoverDrive(db:LifeboatDatabase,includeTrash=false,onProgress?:(n:number)=>void){const auth=await authFor('source'),api=google.drive({version:'v3',auth}),items:FileRow[]=[];let pageToken:string|undefined;do{const r=await api.files.list({pageSize:1000,pageToken,q:includeTrash?undefined:'trashed = false',spaces:'drive',corpora:'user',fields:'nextPageToken,files(id,name,mimeType,parents,size,createdTime,modifiedTime,md5Checksum,ownedByMe,owners(displayName,emailAddress),shared,trashed,shortcutDetails(targetId),capabilities(canDownload,canCopy),permissions(emailAddress,role,type))'});for(const f of r.data.files??[])if(f.id)items.push({id:f.id,name:f.name??'unnamed',mimeType:f.mimeType??'application/octet-stream',parents:f.parents??[],size:f.size?Number(f.size):null,createdTime:f.createdTime??null,modifiedTime:f.modifiedTime??null,md5:f.md5Checksum??null,owned:!!f.ownedByMe,owners:f.owners??[],shared:!!f.shared,trashed:!!f.trashed,shortcutTarget:f.shortcutDetails?.targetId??null,canDownload:f.capabilities?.canDownload!==false,canCopy:f.capabilities?.canCopy!==false,permissions:f.permissions??[]});pageToken=r.data.nextPageToken??undefined;onProgress?.(items.length)}while(pageToken);
- const byId=new Map(items.map(x=>[x.id,x])),cache=new Map<string,string>(),usedByParent=new Map<string,Set<string>>();function resolve(id:string,seen=new Set<string>()):string{if(cache.has(id))return cache.get(id)!;const f=byId.get(id);if(!f)return'';if(seen.has(id))return safeSegment(f.name);seen.add(id);const parent=f.parents[0],parentPath=parent?resolve(parent,seen):'';let used=usedByParent.get(parent??'root');if(!used){used=new Set;usedByParent.set(parent??'root',used)}const segment=deterministicName(f.name,f.mimeType,f.id,used);const p=parentPath?`${parentPath}/${segment}`:segment;cache.set(id,p);return p}
- for(const f of items){const p=resolve(f.id),exp=exportFor(f.mimeType);db.upsertDrive({sourceId:f.id,name:f.name,mimeType:f.mimeType,parents:JSON.stringify(f.parents),resolvedPath:p,relativePath:p,size:f.size,createdTime:f.createdTime,modifiedTime:f.modifiedTime,md5:f.md5,isNative:f.mimeType.startsWith('application/vnd.google-apps.')&&f.mimeType!=='application/vnd.google-apps.folder'?1:0,isFolder:f.mimeType==='application/vnd.google-apps.folder'?1:0,isShortcut:f.mimeType==='application/vnd.google-apps.shortcut'?1:0,shortcutTarget:f.shortcutTarget,owned:f.owned?1:0,ownerName:f.owners[0]?.displayName??null,ownerEmail:f.owners[0]?.emailAddress??null,shared:f.owned?0:1,trashed:f.trashed?1:0,exportExtension:exp?.extension??null,canDownload:f.canDownload?1:0,canCopy:f.canCopy?1:0,permissions:JSON.stringify(f.permissions),updatedAt:new Date().toISOString()})}return{count:items.length,stats:db.driveStats()};}
-export function sharedAudit(rows:any[],destination:string){return rows.map(r=>{const perms=JSON.parse(r.permissions_json||'[]'),destinationAccess=perms.some((p:any)=>p.emailAddress?.toLowerCase()===destination.toLowerCase());return{sourceId:r.source_id,name:r.name,mimeType:r.mime_type,path:r.relative_path,owner:r.owner_email||r.owner_name||'Unknown',shortcut:!!r.is_shortcut,shortcutTarget:r.shortcut_target_id,destinationAccess,classification:classifyShared({owned:!!r.owned,destinationAccess,canDownload:!!r.can_download,canCopy:!!r.can_copy,canShare:false})}})}
+import { google } from "googleapis";
+import { authFor } from "./google";
+import { classifyShared, deterministicName, exportFor, safeSegment } from "./drive-policy";
+import type { LifeboatDatabase } from "./database";
+type FileRow = {
+  id: string;
+  name: string;
+  mimeType: string;
+  parents: string[];
+  size: number | null;
+  createdTime: string | null;
+  modifiedTime: string | null;
+  md5: string | null;
+  owned: boolean;
+  owners: Array<{ displayName?: string | null; emailAddress?: string | null }>;
+  shared: boolean;
+  trashed: boolean;
+  shortcutTarget: string | null;
+  canDownload: boolean;
+  canCopy: boolean;
+  permissions: Array<{ emailAddress?: string | null; role?: string | null; type?: string | null }>;
+};
+export async function discoverDrive(
+  db: LifeboatDatabase,
+  includeTrash = false,
+  onProgress?: (n: number) => void,
+) {
+  const auth = await authFor("source"),
+    api = google.drive({ version: "v3", auth }),
+    items: FileRow[] = [];
+  let pageToken: string | undefined;
+  do {
+    const r = await api.files.list({
+      pageSize: 1000,
+      pageToken,
+      q: includeTrash ? undefined : "trashed = false",
+      spaces: "drive",
+      corpora: "user",
+      fields:
+        "nextPageToken,files(id,name,mimeType,parents,size,createdTime,modifiedTime,md5Checksum,ownedByMe,owners(displayName,emailAddress),shared,trashed,shortcutDetails(targetId),capabilities(canDownload,canCopy),permissions(emailAddress,role,type))",
+    });
+    for (const f of r.data.files ?? [])
+      if (f.id)
+        items.push({
+          id: f.id,
+          name: f.name ?? "unnamed",
+          mimeType: f.mimeType ?? "application/octet-stream",
+          parents: f.parents ?? [],
+          size: f.size ? Number(f.size) : null,
+          createdTime: f.createdTime ?? null,
+          modifiedTime: f.modifiedTime ?? null,
+          md5: f.md5Checksum ?? null,
+          owned: !!f.ownedByMe,
+          owners: f.owners ?? [],
+          shared: !!f.shared,
+          trashed: !!f.trashed,
+          shortcutTarget: f.shortcutDetails?.targetId ?? null,
+          canDownload: f.capabilities?.canDownload !== false,
+          canCopy: f.capabilities?.canCopy !== false,
+          permissions: f.permissions ?? [],
+        });
+    pageToken = r.data.nextPageToken ?? undefined;
+    onProgress?.(items.length);
+  } while (pageToken);
+  const byId = new Map(items.map((x) => [x.id, x])),
+    cache = new Map<string, string>(),
+    usedByParent = new Map<string, Set<string>>();
+  function resolve(id: string, seen = new Set<string>()): string {
+    if (cache.has(id)) return cache.get(id)!;
+    const f = byId.get(id);
+    if (!f) return "";
+    if (seen.has(id)) return safeSegment(f.name);
+    seen.add(id);
+    const parent = f.parents[0],
+      parentPath = parent ? resolve(parent, seen) : "";
+    let used = usedByParent.get(parent ?? "root");
+    if (!used) {
+      used = new Set();
+      usedByParent.set(parent ?? "root", used);
+    }
+    const segment = deterministicName(f.name, f.mimeType, f.id, used);
+    const p = parentPath ? `${parentPath}/${segment}` : segment;
+    cache.set(id, p);
+    return p;
+  }
+  for (const f of items) {
+    const p = resolve(f.id),
+      exp = exportFor(f.mimeType);
+    db.upsertDrive({
+      sourceId: f.id,
+      name: f.name,
+      mimeType: f.mimeType,
+      parents: JSON.stringify(f.parents),
+      resolvedPath: p,
+      relativePath: p,
+      size: f.size,
+      createdTime: f.createdTime,
+      modifiedTime: f.modifiedTime,
+      md5: f.md5,
+      isNative:
+        f.mimeType.startsWith("application/vnd.google-apps.") &&
+        f.mimeType !== "application/vnd.google-apps.folder"
+          ? 1
+          : 0,
+      isFolder: f.mimeType === "application/vnd.google-apps.folder" ? 1 : 0,
+      isShortcut: f.mimeType === "application/vnd.google-apps.shortcut" ? 1 : 0,
+      shortcutTarget: f.shortcutTarget,
+      owned: f.owned ? 1 : 0,
+      ownerName: f.owners[0]?.displayName ?? null,
+      ownerEmail: f.owners[0]?.emailAddress ?? null,
+      shared: f.owned ? 0 : 1,
+      trashed: f.trashed ? 1 : 0,
+      exportExtension: exp?.extension ?? null,
+      canDownload: f.canDownload ? 1 : 0,
+      canCopy: f.canCopy ? 1 : 0,
+      permissions: JSON.stringify(f.permissions),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return { count: items.length, stats: db.driveStats() };
+}
+export function sharedAudit(rows: any[], destination: string) {
+  return rows.map((r) => {
+    const perms = JSON.parse(r.permissions_json || "[]"),
+      destinationAccess = perms.some(
+        (p: any) => p.emailAddress?.toLowerCase() === destination.toLowerCase(),
+      );
+    return {
+      sourceId: r.source_id,
+      name: r.name,
+      mimeType: r.mime_type,
+      path: r.relative_path,
+      owner: r.owner_email || r.owner_name || "Unknown",
+      shortcut: !!r.is_shortcut,
+      shortcutTarget: r.shortcut_target_id,
+      destinationAccess,
+      classification: classifyShared({
+        owned: !!r.owned,
+        destinationAccess,
+        canDownload: !!r.can_download,
+        canCopy: !!r.can_copy,
+        canShare: false,
+      }),
+    };
+  });
+}

@@ -24,13 +24,10 @@ export function fingerprint(p: any, key: string) {
       JSON.stringify({
         e: vals(p.emailAddresses),
         p: vals(p.phoneNumbers).map((x) => x.replace(/[^+\d]/g, "")),
-      n: vals(primaryOnly(p.names), "displayName"),
+        n: vals(primaryOnly(p.names), "displayName"),
         o: vals(p.organizations, "name"),
         b: (p.birthdays ?? [])
-          .map(
-            (x: any) =>
-              `${x.date?.year ?? ""}-${x.date?.month ?? ""}-${x.date?.day ?? ""}`,
-          )
+          .map((x: any) => `${x.date?.year ?? ""}-${x.date?.month ?? ""}-${x.date?.day ?? ""}`)
           .sort(),
       }),
     )
@@ -112,23 +109,17 @@ export async function withContactRetry<T>(fn: () => Promise<T>, attempts = 5) {
     } catch (error) {
       last = error;
       if (!transientContactError(error) || attempt === attempts - 1) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(1000 * 2 ** attempt, 15_000)),
-      );
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 15_000)));
     }
   }
   throw last;
 }
 export function classifyMatch(source: any, dest: any[], key: string) {
-  const exact = dest.filter(
-    (x) => fingerprint(x, key) === fingerprint(source, key),
-  );
+  const exact = dest.filter((x) => fingerprint(x, key) === fingerprint(source, key));
   if (exact.length === 1) return { kind: "existing", person: exact[0] };
   if (exact.length > 1) return { kind: "ambiguous" };
   const emails = new Set(vals(source.emailAddresses)),
-    possible = dest.filter((x) =>
-      vals(x.emailAddresses).some((e) => emails.has(e)),
-    );
+    possible = dest.filter((x) => vals(x.emailAddresses).some((e) => emails.has(e)));
   return possible.length
     ? {
         kind: possible.length === 1 ? "possible" : "ambiguous",
@@ -156,11 +147,21 @@ const ve = (v: unknown) =>
     .replace(/[,;]/g, (m) => `\\${m}`);
 export function vcard(p: any) {
   const n = p.names?.[0]?.displayName ?? "Unnamed contact",
-    l = ["BEGIN:VCARD", "VERSION:3.0", `FN:${ve(n)}`];
-  for (const x of p.emailAddresses ?? [])
-    if (x.value) l.push(`EMAIL:${ve(x.value)}`);
-  for (const x of p.phoneNumbers ?? [])
-    if (x.value) l.push(`TEL:${ve(x.value)}`);
+    l = ["BEGIN:VCARD", "VERSION:4.0", `FN:${ve(n)}`];
+  for (const x of p.emailAddresses ?? []) if (x.value) l.push(`EMAIL:${ve(x.value)}`);
+  for (const x of p.phoneNumbers ?? []) if (x.value) l.push(`TEL:${ve(x.value)}`);
+  for (const x of p.addresses ?? []) if (x.formattedValue) l.push(`ADR:;;${ve(x.formattedValue)}`);
+  for (const x of p.organizations ?? []) if (x.name) l.push(`ORG:${ve(x.name)}`);
+  for (const x of p.birthdays ?? [])
+    if (x.date)
+      l.push(
+        `BDAY:${[x.date.year, x.date.month, x.date.day]
+          .filter((part) => part !== undefined)
+          .map((part) => String(part).padStart(2, "0"))
+          .join("-")}`,
+      );
+  for (const x of p.biographies ?? []) if (x.value) l.push(`NOTE:${ve(x.value)}`);
+  for (const x of p.urls ?? []) if (x.value) l.push(`URL:${ve(x.value)}`);
   return l.concat("END:VCARD", "").join("\r\n");
 }
 export function validatePhoto(bytes: Buffer, mime: string) {
@@ -174,12 +175,14 @@ async function listPeople(api: people_v1.People) {
   const all: people_v1.Schema$Person[] = [];
   let pageToken: string | undefined;
   do {
-    const r = await withContactRetry(() => api.people.connections.list({
-      resourceName: "people/me",
-      pageSize: 1000,
-      pageToken,
-      personFields: CONTACT_FIELDS,
-    }));
+    const r = await withContactRetry(() =>
+      api.people.connections.list({
+        resourceName: "people/me",
+        pageSize: 1000,
+        pageToken,
+        personFields: CONTACT_FIELDS,
+      }),
+    );
     all.push(...(r.data.connections ?? []).filter((x) => !x.metadata?.deleted));
     pageToken = r.data.nextPageToken ?? undefined;
   } while (pageToken);
@@ -328,10 +331,7 @@ export async function runContacts(
     destPeople = await listPeople(dest);
   const existingGroups = await dest.contactGroups.list({ pageSize: 1000 }),
     byName = new Map(
-      (existingGroups.data.contactGroups ?? []).map((g) => [
-        norm(g.name),
-        g.resourceName!,
-      ]),
+      (existingGroups.data.contactGroups ?? []).map((g) => [norm(g.name), g.resourceName!]),
     );
   for (const g of db.phaseAll(
     "SELECT * FROM contact_group_map WHERE source_subject=? AND destination_subject=? AND group_type='user'",
@@ -339,9 +339,7 @@ export async function runContacts(
     destinationSubject,
   )) {
     try {
-      let id =
-        g.destination_group_resource ||
-        byName.get(norm(g.destination_group_name));
+      let id = g.destination_group_resource || byName.get(norm(g.destination_group_name));
       if (!id)
         id = (
           await dest.contactGroups.create({
@@ -379,13 +377,25 @@ export async function runContacts(
     );
     try {
       const p = (
-          await withContactRetry(() => source.people.get({
-            resourceName: row.source_resource_name,
-            personFields: CONTACT_FIELDS,
-          }))
+          await withContactRetry(() =>
+            source.people.get({
+              resourceName: row.source_resource_name,
+              personFields: CONTACT_FIELDS,
+            }),
+          )
         ).data,
         match = row.destination_resource_name
-          ? { kind: "resuming", person: (await withContactRetry(() => dest.people.get({ resourceName: row.destination_resource_name, personFields: CONTACT_FIELDS }))).data }
+          ? {
+              kind: "resuming",
+              person: (
+                await withContactRetry(() =>
+                  dest.people.get({
+                    resourceName: row.destination_resource_name,
+                    personFields: CONTACT_FIELDS,
+                  }),
+                )
+              ).data,
+            }
           : classifyMatch(p, destPeople, key);
       if (match.kind === "ambiguous" || match.kind === "possible") {
         db.phaseRun(
@@ -425,10 +435,12 @@ export async function runContacts(
           sourceGroup,
         );
         if (map?.destination_group_resource)
-          await withContactRetry(() => dest.contactGroups.members.modify({
-            resourceName: map.destination_group_resource,
-            requestBody: { resourceNamesToAdd: [created.resourceName!] },
-          }));
+          await withContactRetry(() =>
+            dest.contactGroups.members.modify({
+              resourceName: map.destination_group_resource,
+              requestBody: { resourceNamesToAdd: [created.resourceName!] },
+            }),
+          );
       }
       let photoCopied = false,
         photoError = false;
@@ -437,10 +449,7 @@ export async function runContacts(
         try {
           const response = await fetch(photo.url);
           const bytes = Buffer.from(await response.arrayBuffer());
-          validatePhoto(
-            bytes,
-            response.headers.get("content-type")?.split(";")[0] ?? "",
-          );
+          validatePhoto(bytes, response.headers.get("content-type")?.split(";")[0] ?? "");
           await dest.people.updateContactPhoto({
             resourceName: created.resourceName!,
             requestBody: { photoBytes: bytes.toString("base64") },
@@ -450,10 +459,12 @@ export async function runContacts(
           photoError = true;
         }
       const got = (
-          await withContactRetry(() => dest.people.get({
-            resourceName: created.resourceName!,
-            personFields: CONTACT_FIELDS,
-          }))
+          await withContactRetry(() =>
+            dest.people.get({
+              resourceName: created.resourceName!,
+              personFields: CONTACT_FIELDS,
+            }),
+          )
         ).data,
         ok = fingerprint(p, key) === fingerprint(got, key);
       db.phaseRun(
@@ -620,30 +631,113 @@ export async function exportContacts(dir: string) {
   const api = google.people({ version: "v1", auth: await authFor("source") }),
     people = await listPeople(api);
   await mkdir(dir, { recursive: true });
-  const base = path.join(
-      dir,
-      `cornerstone-contacts-${new Date().toISOString().replace(/[:.]/g, "-")}`,
-    ),
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-"),
+    base = path.join(dir, `cornerstone-contacts-${stamp}`),
+    photoDir = `${base}-photos`;
+  const other: people_v1.Schema$Person[] = [],
+    groups: people_v1.Schema$ContactGroup[] = [];
+  let token: string | undefined;
+  do {
+    const response: { data: people_v1.Schema$ListOtherContactsResponse } =
+      await api.otherContacts.list({
+        pageSize: 1000,
+        pageToken: token,
+        readMask: "metadata,names,emailAddresses,phoneNumbers,photos",
+      });
+    other.push(...(response.data.otherContacts ?? []));
+    token = response.data.nextPageToken ?? undefined;
+  } while (token);
+  token = undefined;
+  do {
+    const response: { data: people_v1.Schema$ListContactGroupsResponse } =
+      await api.contactGroups.list({
+        pageSize: 1000,
+        pageToken: token,
+        groupFields: "groupType,memberCount,metadata,name",
+      });
+    groups.push(...(response.data.contactGroups ?? []));
+    token = response.data.nextPageToken ?? undefined;
+  } while (token);
+  await mkdir(photoDir, { recursive: true });
+  const photoFiles: Array<{ resourceHash: string; file: string; sha256: string; bytes: number }> =
+    [];
+  for (const person of [...people, ...other]) {
+    const photo = person.photos?.find((item) => !item.default && item.url);
+    if (!photo?.url) continue;
+    try {
+      const response = await fetch(photo.url),
+        bytes = Buffer.from(await response.arrayBuffer()),
+        mime = response.headers.get("content-type")?.split(";")[0] ?? "";
+      validatePhoto(bytes, mime);
+      const resourceHash = hash(person.resourceName),
+        extension = mime === "image/png" ? ".png" : mime === "image/webp" ? ".webp" : ".jpg",
+        file = `${resourceHash}${extension}`,
+        temp = path.join(photoDir, `${file}.tmp`);
+      await writeFile(temp, bytes, { flag: "wx" });
+      await rename(temp, path.join(photoDir, file));
+      photoFiles.push({ resourceHash, file, sha256: hash(bytes), bytes: bytes.length });
+    } catch {
+      // The JSON archive still preserves every non-photo field and records photo presence.
+    }
+  }
+  const portable = (person: people_v1.Schema$Person) => ({
+      ...person,
+      photos: person.photos?.map(({ url: _url, ...photo }) => photo),
+    }),
     csv = [
-      "Name,E-mail 1 - Value,Phone 1 - Value",
+      "Name,Emails,Phones,Organisations,Addresses,Birthdays,URLs,Groups",
       ...people.map((p) =>
         [
           p.names?.[0]?.displayName,
-          p.emailAddresses?.[0]?.value,
-          p.phoneNumbers?.[0]?.value,
+          p.emailAddresses
+            ?.map((x) => x.value)
+            .filter(Boolean)
+            .join(" | "),
+          p.phoneNumbers
+            ?.map((x) => x.value)
+            .filter(Boolean)
+            .join(" | "),
+          p.organizations
+            ?.map((x) => x.name)
+            .filter(Boolean)
+            .join(" | "),
+          p.addresses
+            ?.map((x) => x.formattedValue)
+            .filter(Boolean)
+            .join(" | "),
+          p.birthdays
+            ?.map((x) => `${x.date?.year ?? ""}-${x.date?.month ?? ""}-${x.date?.day ?? ""}`)
+            .join(" | "),
+          p.urls
+            ?.map((x) => x.value)
+            .filter(Boolean)
+            .join(" | "),
+          p.memberships
+            ?.map((x) => x.contactGroupMembership?.contactGroupResourceName)
+            .filter(Boolean)
+            .join(" | "),
         ]
           .map(csvCell)
           .join(","),
       ),
     ].join("\r\n"),
-    vcf = people.map(vcard).join(""),
+    vcf = [...people, ...other].map(vcard).join(""),
     json = JSON.stringify(
       {
         createdAt: new Date().toISOString(),
-        contacts: people.map((p) => ({
-          resource: hash(p.resourceName),
-          fields: presence(p),
-        })),
+        sensitivity: "Contains full contact data; protect this archive",
+        contacts: people.map(portable),
+        otherContacts: other.map(portable),
+        groups,
+        photos: photoFiles,
+        fidelity: {
+          contacts: people.length,
+          otherContacts: other.length,
+          groups: groups.length,
+          photosExpected: [...people, ...other].filter((p) => p.photos?.some((x) => !x.default))
+            .length,
+          photosArchived: photoFiles.length,
+        },
       },
       null,
       2,
@@ -657,9 +751,21 @@ export async function exportContacts(dir: string) {
     await writeFile(tmp, data, { flag: "wx" });
     await rename(tmp, `${base}.${ext}`);
   }
+  const checksums = Object.fromEntries(
+    [
+      ["csv", csv],
+      ["vcf", vcf],
+      ["json", json],
+    ].map(([ext, data]) => [`${path.basename(base)}.${ext}`, hash(data)]),
+  );
+  await writeFile(
+    `${base}.sha256.json`,
+    JSON.stringify({ algorithm: "SHA-256", files: checksums, photos: photoFiles }, null, 2),
+    { flag: "wx" },
+  );
   return base;
 }
 const hash = (v: unknown) =>
   createHash("sha256")
-    .update(String(v ?? ""))
+    .update(Buffer.isBuffer(v) ? v : String(v ?? ""))
     .digest("hex");

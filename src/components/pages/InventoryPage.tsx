@@ -31,15 +31,24 @@ export default function InventoryPage({
           <p>Phase 2 expands Drive metadata into a paged local manifest.</p>
         </div>
         <div className="actions">
-          <button disabled={!source || busy} onClick={() => act("inventory", () => window.lifeboat.runInventory())}>
+          <button
+            disabled={!source || busy}
+            onClick={() => act("inventory", () => window.lifeboat.runInventory())}
+          >
             Account inventory
           </button>
           {data.inventory.running && (
-            <button className="danger" onClick={() => act("cancel-inventory", () => window.lifeboat.cancelInventory())}>
+            <button
+              className="danger"
+              onClick={() => act("cancel-inventory", () => window.lifeboat.cancelInventory())}
+            >
               Stop inventory
             </button>
           )}
-          <button disabled={!source || busy} onClick={() => act("drive-discover", () => window.lifeboat.discoverDrive())}>
+          <button
+            disabled={!source || busy}
+            onClick={() => act("drive-discover", () => window.lifeboat.discoverDrive())}
+          >
             Build Drive manifest
           </button>
         </div>
@@ -78,7 +87,8 @@ export default function InventoryPage({
               .join("\n")}
           </pre>
           <p className="muted">
-            Following newest entries automatically. Scroll up to pause following. Sensitive content and OAuth credentials are excluded.
+            Following newest entries automatically. Scroll up to pause following. Sensitive content
+            and OAuth credentials are excluded.
           </p>
         </section>
       )}
@@ -89,7 +99,9 @@ export default function InventoryPage({
             <h3>{new Intl.NumberFormat().format(inv.drive.files)} items</h3>
             <small>{new Intl.NumberFormat().format(inv.drive.folders)} folders</small>
             <small>{new Intl.NumberFormat().format(inv.drive.googleNative)} native</small>
-            <small>{inv.drive.bytes ? `${(inv.drive.bytes / 1024 ** 3).toFixed(1)} GB` : "—"}</small>
+            <small>
+              {inv.drive.bytes ? `${(inv.drive.bytes / 1024 ** 3).toFixed(1)} GB` : "—"}
+            </small>
           </section>
           <section className="panel module">
             <p className="eyebrow">Manifest</p>

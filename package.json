@@ -1,1 +1,71 @@
-{"name":"cornerstone-lifeboat","version":"0.3.0","private":true,"description":"Local-first Google Workspace migration cockpit","main":"dist-electron/electron/main/index.js","scripts":{"dev":"concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"","build":"npm run typecheck && vite build && tsc -p tsconfig.electron.json && npm run rebuild:electron && electron-builder","build:dir":"npm run typecheck && vite build && tsc -p tsconfig.electron.json && npm run rebuild:electron && electron-builder --dir","pretest":"npm rebuild better-sqlite3 --runtime=node","test":"vitest run","posttest":"npm run rebuild:electron","test:watch":"vitest","typecheck":"tsc --noEmit && tsc -p tsconfig.electron.json --noEmit","lint":"tsc --noEmit && tsc -p tsconfig.electron.json --noEmit","postinstall":"npm run rebuild:electron","rebuild:electron":"electron-rebuild -f -w better-sqlite3 -w keytar","test:e2e":"node test/e2e-app.mjs","test:e2e:live":"cross-env LIFEBOAT_LIVE=1 node test/e2e-app.mjs"},"dependencies":{"@vitejs/plugin-react":"latest","better-sqlite3":"latest","googleapis":"latest","keytar":"latest","react":"latest","react-dom":"latest","zod":"latest"},"devDependencies":{"@electron/rebuild":"^4.2.0","@types/better-sqlite3":"latest","@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","concurrently":"latest","cross-env":"latest","electron":"latest","electron-builder":"latest","playwright":"^1.61.1","typescript":"latest","vite":"latest","vitest":"latest","wait-on":"latest"},"build":{"appId":"au.edu.cornerstone.lifeboat","productName":"Cornerstone Lifeboat","files":["dist/**","dist-electron/**","package.json"],"asarUnpack":["**/*.node"],"win":{"target":"nsis"},"linux":{"target":["AppImage","deb"],"category":"Utility"},"npmRebuild":"false"}}
+{
+  "name": "cornerstone-lifeboat",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Local-first Google Workspace migration cockpit",
+  "main": "dist-electron/electron/main/index.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "build": "npm run typecheck && vite build && tsc -p tsconfig.electron.json && npm run rebuild:electron && electron-builder",
+    "build:dir": "npm run typecheck && vite build && tsc -p tsconfig.electron.json && npm run rebuild:electron && electron-builder --dir",
+    "pretest": "node scripts/prepare-node-native.cjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "lint": "npm run typecheck && prettier --check .",
+    "format": "prettier --write .",
+    "postinstall": "npm run rebuild:electron",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3 -w keytar",
+    "test:e2e": "node test/e2e-app.mjs",
+    "test:e2e:live": "cross-env LIFEBOAT_LIVE=1 node test/e2e-app.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.0.3",
+    "better-sqlite3": "12.11.1",
+    "googleapis": "173.0.0",
+    "keytar": "7.9.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.2.0",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "26.1.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "concurrently": "9.2.4",
+    "cross-env": "10.1.0",
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3",
+    "playwright": "1.61.1",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10",
+    "wait-on": "9.0.10"
+  },
+  "build": {
+    "appId": "au.edu.cornerstone.lifeboat",
+    "productName": "Cornerstone Lifeboat",
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility"
+    },
+    "npmRebuild": "false"
+  }
+}

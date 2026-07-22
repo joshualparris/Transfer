@@ -1,2 +1,30 @@
-import{describe,expect,it}from'vitest';import{eventFingerprint,safeCalendarName,writableEvent}from'../electron/calendar';
-describe('Calendar preservation',()=>{it('uses isolated prefixed destination calendars',()=>expect(safeCalendarName('School')).toBe('Cornerstone Import/School'));it('fingerprints recurrence and dates deterministically',()=>{const e={summary:'Class',start:{dateTime:'2026-01-01T09:00:00+11:00'},end:{dateTime:'2026-01-01T10:00:00+11:00'},recurrence:['RRULE:FREQ=WEEKLY']};expect(eventFingerprint(e)).toBe(eventFingerprint({...e}));expect(eventFingerprint({...e,recurrence:[]})).not.toBe(eventFingerprint(e))});it('preserves the import UID while stripping unsafe source fields',()=>{const x:any=writableEvent({id:'source',iCalUID:'uid',attendees:[{email:'x@y.com'}],conferenceData:{conferenceId:'meeting'},summary:'Safe'});expect(x.id).toBeUndefined();expect(x.iCalUID).toBe('uid');expect(x.attendees).toBeUndefined();expect(x.conferenceData).toBeUndefined();expect(x.summary).toBe('Safe')})});
+import { describe, expect, it } from "vitest";
+import { eventFingerprint, safeCalendarName, writableEvent } from "../electron/calendar";
+describe("Calendar preservation", () => {
+  it("uses isolated prefixed destination calendars", () =>
+    expect(safeCalendarName("School")).toBe("Cornerstone Import/School"));
+  it("fingerprints recurrence and dates deterministically", () => {
+    const e = {
+      summary: "Class",
+      start: { dateTime: "2026-01-01T09:00:00+11:00" },
+      end: { dateTime: "2026-01-01T10:00:00+11:00" },
+      recurrence: ["RRULE:FREQ=WEEKLY"],
+    };
+    expect(eventFingerprint(e)).toBe(eventFingerprint({ ...e }));
+    expect(eventFingerprint({ ...e, recurrence: [] })).not.toBe(eventFingerprint(e));
+  });
+  it("preserves the import UID while stripping unsafe source fields", () => {
+    const x: any = writableEvent({
+      id: "source",
+      iCalUID: "uid",
+      attendees: [{ email: "x@y.com" }],
+      conferenceData: { conferenceId: "meeting" },
+      summary: "Safe",
+    });
+    expect(x.id).toBeUndefined();
+    expect(x.iCalUID).toBe("uid");
+    expect(x.attendees).toBeUndefined();
+    expect(x.conferenceData).toBeUndefined();
+    expect(x.summary).toBe("Safe");
+  });
+});

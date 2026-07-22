@@ -81,13 +81,26 @@ export default function App() {
 
   const source = data.accounts.some((a) => a.role === "source");
   const dest = data.accounts.some((a) => a.role === "destination");
-  const running = (labels: string[]) => labels.some((label) => actionState[label]?.status === "running");
+  const running = (labels: string[]) =>
+    labels.some((label) => actionState[label]?.status === "running");
   const anyBusy = Object.values(actionState).some((item) => item.status === "running");
   const inventoryBusy = running(["inventory", "cancel-inventory", "drive-discover"]);
   const driveBusy = running(["rclone", "remote", "pick", "test", "start", "pause", "verify"]);
-  const gmailBusy = running(["gmail-auth", "settings-auth", "archive", "discover-mail", "pause-mail", "start-mail", "vacation"]);
-  const contactsBusy = Object.entries(actionState).some(([label, item]) => label.startsWith("contacts-") && item.status === "running");
-  const calendarBusy = Object.entries(actionState).some(([label, item]) => label.startsWith("calendar-") && item.status === "running");
+  const gmailBusy = running([
+    "gmail-auth",
+    "settings-auth",
+    "archive",
+    "discover-mail",
+    "pause-mail",
+    "start-mail",
+    "vacation",
+  ]);
+  const contactsBusy = Object.entries(actionState).some(
+    ([label, item]) => label.startsWith("contacts-") && item.status === "running",
+  );
+  const calendarBusy = Object.entries(actionState).some(
+    ([label, item]) => label.startsWith("calendar-") && item.status === "running",
+  );
   const preservationBusy = running(["takeout-scan"]);
 
   const page = {
@@ -103,7 +116,15 @@ export default function App() {
     ),
     "Activity & logs": <ActivityPage data={data} />,
     Accounts: <AccountsPage data={data} busy={anyBusy} act={act} />,
-    Inventory: <InventoryPage data={data} inv={data.latestInventory} busy={inventoryBusy} source={source} act={act} />,
+    Inventory: (
+      <InventoryPage
+        data={data}
+        inv={data.latestInventory}
+        busy={inventoryBusy}
+        source={source}
+        act={act}
+      />
+    ),
     "Drive setup": <DriveSetupPage data={data} busy={driveBusy} act={act} />,
     Backup: <BackupPage data={data} busy={driveBusy} act={act} />,
     "Shared items": <SharedPage data={data} />,
@@ -118,9 +139,8 @@ export default function App() {
         <div>
           <h2>Evidence bundle</h2>
           <p>
-            Exports source inventory, Drive manifest, shared audit and
-            verification evidence. “Safe” requires completed verification and
-            reviewed limitations.
+            Exports source inventory, Drive manifest, shared audit and verification evidence. “Safe”
+            requires completed verification and reviewed limitations.
           </p>
         </div>
         <button onClick={() => act("export", () => window.lifeboat.exportReports())}>
@@ -162,7 +182,7 @@ export default function App() {
             <p className="eyebrow">MIGRATION COCKPIT</p>
             <h1>{active}</h1>
           </div>
-          <div className={"deadline " + (days < 7 ? "urgent" : "")}> 
+          <div className={"deadline " + (days < 7 ? "urgent" : "")}>
             <small>ACCESS WINDOW</small>
             <b>{days > 0 ? `${days} days remaining` : "Deadline passed"}</b>
           </div>

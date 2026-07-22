@@ -18,9 +18,8 @@ export default function VerificationPage({
       <div>
         <h2>{job?.status ?? "Not verified"}</h2>
         <p>
-          Runs a non-destructive downloaded-content comparison. Google-native
-          exports are reported as converted because source checksums cannot
-          match Office/PDF output.
+          Runs a non-destructive downloaded-content comparison. Google-native exports are reported
+          as converted because source checksums cannot match Office/PDF output.
         </p>
         {job?.verification && <pre>{JSON.stringify(job.verification, null, 2)}</pre>}
       </div>

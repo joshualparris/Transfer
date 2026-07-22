@@ -6,6 +6,10 @@ Phase 3 adds Gmail copy and verification. No source deletion, Gmail send method,
 
 Phase 4 adds resumable Contacts and Calendar migration with destination pairing, duplicate/review safeguards, destination-only verification, CSV/vCard and ICS backups. Photos and Keep use checksum-verified Google Takeout preservation because Google does not expose a faithful consumer-account copy API for those products.
 
+## Local data sensitivity
+
+OAuth credentials and the selected desktop OAuth client are stored in the operating-system credential vault, not SQLite. The local `lifeboat.db` nevertheless contains sensitive migration metadata: Drive names and paths, owner/permission identities, Gmail source IDs and labels, Contact resource identifiers, Calendar and event identifiers, account identities, statuses, hashes, and redacted errors. Optional raw `.eml`, full Contacts archives, Takeout inventories, reports, and database backups are written only to directories the user explicitly selects. Protect those directories and retain them only as long as needed.
+
 ## Gmail migration
 
 1. Reconnect both accounts after upgrading so Lifeboat records their stable Google account IDs.

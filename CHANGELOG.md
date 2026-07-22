@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — 2026-07-22
+
+- Added resumable Contacts migration, conservative duplicate review, group mapping, primary-name normalization, network retries, and CSV/vCard evidence.
+- Added resumable Calendar migration with recurrence/UID preservation, destination-only verification, and ICS evidence.
+- Added Photos + Keep Takeout checksum preservation and matching cross-module proof exports.
+- Added concurrent module execution, persistent unified activity logs, grouped diagnostics, and fixed-height auto-following log views.
+- Added explicit Calendar/Gmail permission validation and safe requeue of unpaired Gmail scope failures.
+- Added transactional SQLite schema versioning, exact dependency pins, zero-vulnerability dependency audit, Prettier checks, and environment-independent rclone tests.
+
 ## 0.3.0 — 2026-07-20
 
 - Added resumable Gmail message/draft manifests, safe label mapping and bounded migration.

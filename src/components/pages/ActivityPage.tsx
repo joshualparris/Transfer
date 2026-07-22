@@ -29,18 +29,11 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
     [, setClock] = useState(0),
     box = useRef<HTMLDivElement>(null),
     logs = useMemo(
-      () =>
-        data.activity.logs.filter(
-          (x) => filter === "all" || x.module === filter,
-        ),
+      () => data.activity.logs.filter((x) => filter === "all" || x.module === filter),
       [data.activity.logs, filter],
     ),
-    reviews = data.activity.diagnostics.filter(
-      (x) => x.code === "manual-action-required",
-    ),
-    failures = data.activity.diagnostics.filter(
-      (x) => x.code !== "manual-action-required",
-    );
+    reviews = data.activity.diagnostics.filter((x) => x.code === "manual-action-required"),
+    failures = data.activity.diagnostics.filter((x) => x.code !== "manual-action-required");
   useEffect(() => {
     const timer = window.setInterval(() => setClock((x) => x + 1), 10000);
     return () => window.clearInterval(timer);
@@ -56,25 +49,16 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
             <p className="eyebrow">LIVE OPERATIONS</p>
             <h2>Everything running in one place</h2>
           </div>
-          <span>
-            {
-              Object.values(data.activity.modules).filter((x) => x.running)
-                .length
-            }{" "}
-            active
-          </span>
+          <span>{Object.values(data.activity.modules).filter((x) => x.running).length} active</span>
         </div>
         <p>
-          Progress is persisted locally and credentials are redacted. Yellow
-          means no update has arrived for two minutes; it does not automatically
-          mean failure.
+          Progress is persisted locally and credentials are redacted. Yellow means no update has
+          arrived for two minutes; it does not automatically mean failure.
         </p>
         <div className="activitycards">
           {Object.entries(data.activity.modules).map(([key, value]) => {
             const last = data.activity.logs.find(
-                (x) =>
-                  x.module === key ||
-                  (key === "drive" && x.module === "rclone"),
+                (x) => x.module === key || (key === "drive" && x.module === "rclone"),
               ),
               waiting =
                 value.running &&
@@ -87,13 +71,7 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
               >
                 <div>
                   <b>{names[key] ?? key}</b>
-                  <span>
-                    {waiting
-                      ? "Waiting for update"
-                      : value.running
-                        ? "Running"
-                        : "Idle"}
-                  </span>
+                  <span>{waiting ? "Waiting for update" : value.running ? "Running" : "Idle"}</span>
                 </div>
                 <p>{describe(value.progress)}</p>
                 <small>
@@ -110,13 +88,15 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
         <section className="panel">
           <h3>Items waiting for your review — not errors</h3>
           <p>
-            Lifeboat found possible duplicates or fidelity differences and
-            deliberately stopped rather than guessing or overwriting anything.
+            Lifeboat found possible duplicates or fidelity differences and deliberately stopped
+            rather than guessing or overwriting anything.
           </p>
           <div className="diagnostics review">
             {reviews.map((x, i) => (
               <div key={`${x.module}-${x.code}-${i}`}>
-                <b>{names[x.module] ?? x.module} · {x.count.toLocaleString()} to review</b>
+                <b>
+                  {names[x.module] ?? x.module} · {x.count.toLocaleString()} to review
+                </b>
                 <span>{x.message}</span>
               </div>
             ))}
@@ -127,15 +107,14 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
         <section className="panel">
           <h3>Failures requiring attention</h3>
           <p>
-            Grouped directly from the manifests so repeated failures have a
-            concrete reason and count.
+            Grouped directly from the manifests so repeated failures have a concrete reason and
+            count.
           </p>
           <div className="diagnostics">
             {failures.map((x, i) => (
               <div key={`${x.module}-${x.code}-${i}`}>
                 <b>
-                  {names[x.module] ?? x.module} · {x.count.toLocaleString()} ·{" "}
-                  {x.code}
+                  {names[x.module] ?? x.module} · {x.count.toLocaleString()} · {x.code}
                 </b>
                 <span>{x.message}</span>
               </div>
@@ -181,8 +160,8 @@ export default function ActivityPage({ data }: { data: DashboardData }) {
           ))}
         </div>
         <p className="muted">
-          This panel stays fixed-height. Scroll inside it for older entries;
-          turn auto-follow on to return to the newest line.
+          This panel stays fixed-height. Scroll inside it for older entries; turn auto-follow on to
+          return to the newest line.
         </p>
       </section>
     </>

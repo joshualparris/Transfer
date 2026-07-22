@@ -1,1 +1,22 @@
-.warning{background:#fff0cf;color:#7b4f0b;padding:12px;border-radius:8px}.checkline{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center;justify-content:start}.form textarea{min-height:110px;resize:vertical;font:15px 'DM Sans';padding:12px;border:1px solid #cfc8b8;border-radius:8px;background:white;color:#183229}
+.warning {
+  background: #fff0cf;
+  color: #7b4f0b;
+  padding: 12px;
+  border-radius: 8px;
+}
+.checkline {
+  display: flex !important;
+  grid-template-columns: auto 1fr !important;
+  align-items: center;
+  justify-content: start;
+}
+.form textarea {
+  min-height: 110px;
+  resize: vertical;
+  font: 15px "DM Sans";
+  padding: 12px;
+  border: 1px solid #cfc8b8;
+  border-radius: 8px;
+  background: white;
+  color: #183229;
+}

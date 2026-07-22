@@ -1,3 +1,20 @@
-const SECRET_PATTERNS=[/ya29\.[\w-]+/gi,/1\/\/[\w-]+/gi,/Bearer\s+[\w.-]+/gi,/"(?:client_secret|access_token|refresh_token|password)"\s*:\s*"[^"]+"/gi];
-export function redact(value:unknown):string { let s=value instanceof Error?value.message:String(value); for(const p of SECRET_PATTERNS)s=s.replace(p,'[REDACTED]'); return s.replace(/[\r\n]+/g,' ').slice(0,500); }
-export function validateAccountRoles(source:string,destination:string,allowed:string[]){ const s=source.trim().toLowerCase(),d=destination.trim().toLowerCase(); if(!s||!d) throw new Error('Both accounts must be verified'); if(s===d) throw new Error('Source and destination must be different Google accounts'); if(!allowed.map(x=>x.toLowerCase()).includes(d)) throw new Error('Destination is not one of the approved personal accounts'); return true; }
+const SECRET_PATTERNS = [
+  /ya29\.[\w-]+/gi,
+  /1\/\/[\w-]+/gi,
+  /Bearer\s+[\w.-]+/gi,
+  /"(?:client_secret|access_token|refresh_token|password)"\s*:\s*"[^"]+"/gi,
+];
+export function redact(value: unknown): string {
+  let s = value instanceof Error ? value.message : String(value);
+  for (const p of SECRET_PATTERNS) s = s.replace(p, "[REDACTED]");
+  return s.replace(/[\r\n]+/g, " ").slice(0, 500);
+}
+export function validateAccountRoles(source: string, destination: string, allowed: string[]) {
+  const s = source.trim().toLowerCase(),
+    d = destination.trim().toLowerCase();
+  if (!s || !d) throw new Error("Both accounts must be verified");
+  if (s === d) throw new Error("Source and destination must be different Google accounts");
+  if (!allowed.map((x) => x.toLowerCase()).includes(d))
+    throw new Error("Destination is not one of the approved personal accounts");
+  return true;
+}

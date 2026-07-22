@@ -31,19 +31,14 @@ export default function CalendarPage({
           <span>{data.calendar.running ? "Running" : "Resumable"}</span>
         </div>
         <p>
-          Source access is read-only. Lifeboat creates separately named
-          destination calendars, preserves recurring-event rules, and never
-          deletes or edits source events.
+          Source access is read-only. Lifeboat creates separately named destination calendars,
+          preserves recurring-event rules, and never deletes or edits source events.
         </p>
         <button
           disabled={busy || granted}
-          onClick={() =>
-            act("calendar-auth", () => window.lifeboat.authorizeCalendar())
-          }
+          onClick={() => act("calendar-auth", () => window.lifeboat.authorizeCalendar())}
         >
-          {granted
-            ? "Destination Calendar authorised"
-            : "Authorise destination Calendar"}
+          {granted ? "Destination Calendar authorised" : "Authorise destination Calendar"}
         </button>
       </section>
       <div className="metrics">
@@ -69,28 +64,20 @@ export default function CalendarPage({
         <div className="actions">
           <button
             disabled={busy || data.calendar.running}
-            onClick={() =>
-              act("calendar-discover", () => window.lifeboat.discoverCalendar())
-            }
+            onClick={() => act("calendar-discover", () => window.lifeboat.discoverCalendar())}
           >
             Dry-run Calendar inventory
           </button>
           <button
-            disabled={
-              busy || data.calendar.running || !granted || !s.discovered
-            }
-            onClick={() =>
-              act("calendar-start", () => window.lifeboat.startCalendar())
-            }
+            disabled={busy || data.calendar.running || !granted || !s.discovered}
+            onClick={() => act("calendar-start", () => window.lifeboat.startCalendar())}
           >
             Start confirmed Calendar migration
           </button>
           <button
             className="secondary"
             disabled={busy}
-            onClick={() =>
-              act("calendar-export", () => window.lifeboat.exportCalendars())
-            }
+            onClick={() => act("calendar-export", () => window.lifeboat.exportCalendars())}
           >
             Export ICS backups
           </button>
@@ -102,15 +89,13 @@ export default function CalendarPage({
       <section className="panel">
         <h3>Destination-only verification</h3>
         <p>
-          Checks the stored event pairing, summary fingerprint, dates, times and
-          recurrence rules using only destination access.
+          Checks the stored event pairing, summary fingerprint, dates, times and recurrence rules
+          using only destination access.
         </p>
         <button
           disabled={busy || !s.copied}
           onClick={() =>
-            act("calendar-verify", () =>
-              window.lifeboat.verifyCalendarDestinationOnly(),
-            )
+            act("calendar-verify", () => window.lifeboat.verifyCalendarDestinationOnly())
           }
         >
           Verify destination calendars
