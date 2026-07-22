@@ -37,6 +37,7 @@ export const CALENDAR_DESTINATION_SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/calendar.app.created",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
 ];
 export const GMAIL_COPY_SCOPES = [
   "openid",
@@ -194,6 +195,16 @@ export async function authorizeFeature(
   );
   const { tokens: creds } = await oauth.getToken(await codePromise);
   oauth.setCredentials(creds);
+  const granted = creds.access_token
+    ? (await oauth.getTokenInfo(creds.access_token)).scopes
+    : [];
+  const missing = scopes.filter(
+    (scope) => !["openid", "email"].includes(scope) && !granted.includes(scope),
+  );
+  if (missing.length)
+    throw new Error(
+      `Google did not grant the required permission: ${missing.join(", ")}. Please authorise again and accept every requested permission.`,
+    );
   const info = await google
       .oauth2({ version: "v2", auth: oauth })
       .userinfo.get(),
@@ -207,7 +218,7 @@ export async function authorizeFeature(
     role,
     email: info.data.email!.toLowerCase(),
     subject: info.data.id ?? undefined,
-    scopes: (creds.scope ?? scopes.join(" ")).split(" "),
+    scopes: [...new Set([...granted, "openid", "email"])],
     connectedAt: new Date().toISOString(),
   } as AccountSummary;
 }
@@ -217,6 +228,21 @@ export async function authFor(role: AccountRole) {
   const auth = new google.auth.OAuth2(saved.clientId, saved.clientSecret);
   auth.setCredentials(saved.credentials);
   return auth;
+}
+
+export async function assertGrantedScopes(role: AccountRole, required: string[]) {
+  const auth = await authFor(role);
+  const access = await auth.getAccessToken();
+  if (!access.token) throw new Error(`${role} Google access token is unavailable`);
+  const granted = (await auth.getTokenInfo(access.token)).scopes;
+  const missing = required.filter(
+    (scope) => !["openid", "email"].includes(scope) && !granted.includes(scope),
+  );
+  if (missing.length)
+    throw new Error(
+      `The ${role} account is missing required Google permissions. Authorise destination Calendar again before starting.`,
+    );
+  return granted;
 }
 
 export async function inventory(email: string,onProgress?:(event:{module:string;message:string;counts?:Record<string,number>;done?:boolean;error?:boolean})=>void,shouldCancel:()=>boolean=()=>false): Promise<InventorySnapshot> {
