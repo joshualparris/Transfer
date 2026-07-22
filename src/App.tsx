@@ -34,7 +34,7 @@ export default function App() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [active, setActive] = useState("Overview");
   const [error, setError] = useState("");
-  const { actionState, act: managedAct, isBusy } = useActionManager();
+  const { actionState, act: managedAct } = useActionManager();
 
   const load = () => window.lifeboat.dashboard().then(setData);
 
@@ -79,6 +79,14 @@ export default function App() {
 
   const source = data.accounts.some((a) => a.role === "source");
   const dest = data.accounts.some((a) => a.role === "destination");
+  const running = (labels: string[]) => labels.some((label) => actionState[label]?.status === "running");
+  const anyBusy = Object.values(actionState).some((item) => item.status === "running");
+  const inventoryBusy = running(["inventory", "cancel-inventory", "drive-discover"]);
+  const driveBusy = running(["rclone", "remote", "pick", "test", "start", "pause", "verify"]);
+  const gmailBusy = running(["gmail-auth", "settings-auth", "archive", "discover-mail", "pause-mail", "start-mail", "vacation"]);
+  const contactsBusy = Object.entries(actionState).some(([label, item]) => label.startsWith("contacts-") && item.status === "running");
+  const calendarBusy = Object.entries(actionState).some(([label, item]) => label.startsWith("calendar-") && item.status === "running");
+  const preservationBusy = running(["takeout-scan"]);
 
   const page = {
     Overview: (
@@ -86,22 +94,22 @@ export default function App() {
         data={data}
         source={source}
         dest={dest}
-        busy={isBusy}
+        busy={inventoryBusy}
         act={act}
         actionState={actionState}
       />
     ),
-    Accounts: <AccountsPage data={data} busy={isBusy} act={act} />,
-    Inventory: <InventoryPage data={data} inv={data.latestInventory} busy={isBusy} source={source} act={act} />,
-    "Drive setup": <DriveSetupPage data={data} busy={isBusy} act={act} />,
-    Backup: <BackupPage data={data} busy={isBusy} act={act} />,
+    Accounts: <AccountsPage data={data} busy={anyBusy} act={act} />,
+    Inventory: <InventoryPage data={data} inv={data.latestInventory} busy={inventoryBusy} source={source} act={act} />,
+    "Drive setup": <DriveSetupPage data={data} busy={driveBusy} act={act} />,
+    Backup: <BackupPage data={data} busy={driveBusy} act={act} />,
     "Shared items": <SharedPage data={data} />,
-    Verification: <VerificationPage data={data} busy={isBusy} act={act} />,
-    "Gmail migration": <GmailPage data={data} busy={isBusy} act={act} />,
-    "Contacts migration": <ContactsPage data={data} busy={isBusy} act={act} />,
-    "Calendar migration": <CalendarPage data={data} busy={isBusy} act={act} />,
-    "Photos + Keep": <PreservationPage data={data} busy={isBusy} act={act} />,
-    Security: <SecurityPage data={data} busy={isBusy} act={act} />,
+    Verification: <VerificationPage data={data} busy={driveBusy} act={act} />,
+    "Gmail migration": <GmailPage data={data} busy={gmailBusy} act={act} />,
+    "Contacts migration": <ContactsPage data={data} busy={contactsBusy} act={act} />,
+    "Calendar migration": <CalendarPage data={data} busy={calendarBusy} act={act} />,
+    "Photos + Keep": <PreservationPage data={data} busy={preservationBusy} act={act} />,
+    Security: <SecurityPage data={data} busy={anyBusy} act={act} />,
     "Final report": (
       <section className="panel intro">
         <div>
