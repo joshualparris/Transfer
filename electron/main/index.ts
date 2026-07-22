@@ -30,6 +30,7 @@ import {
 } from "../google";
 import{contactStats,convertOtherContacts,exportContacts,inventoryContacts,runContacts,verifyContactsDestinationOnly}from'../contacts';
 import{calendarStats,exportCalendars,inventoryCalendars,runCalendars,verifyCalendarsDestinationOnly}from'../calendar';
+import{scanTakeout}from'../preservation';
 import {
   discoverGmail,
   ensureLabels,
@@ -52,6 +53,7 @@ let win: BrowserWindow | null = null,
   gmailRun: string | null = null;
 let contactsRunning=false,contactsProgress:any={};
 let calendarRunning=false,calendarProgress:any={};
+let preservationRunning=false,preservationProgress:any={};
 const runner = new RcloneProcess(),
   gmailRunner = new GmailRunner();
 const settingsSchema = z.object({
@@ -97,6 +99,7 @@ function dashboard() {
     },
     contacts:{stats:contactStats(db),running:contactsRunning,progress:contactsProgress,config:db.setting('contactsConfig',{otherPolicy:'archive'})},
     calendar:{stats:calendarStats(db),running:calendarRunning,progress:calendarProgress},
+    preservation:{running:preservationRunning,progress:preservationProgress,result:db.setting('takeoutResult',null)},
   };
 }
 function createWindow() {
@@ -354,6 +357,7 @@ ipcMain.handle('calendar-discover',async()=>{if(calendarRunning)throw new Error(
 ipcMain.handle('calendar-start',async()=>{if(calendarRunning)throw new Error('Calendar work is already running');const{source,destination}=gmailAccounts();if(!destination.scopes.includes('https://www.googleapis.com/auth/calendar.app.created'))throw new Error('Authorise destination Calendar access first');const confirm=await dialog.showMessageBox(win!,{type:'warning',buttons:['Cancel','Create destination calendars'],defaultId:0,cancelId:0,message:`Copy calendars ${source.email} → ${destination.email}`,detail:'New prefixed calendars and events will be created. Source calendars remain read-only. Nothing is deleted.'});if(confirm.response!==1)return dashboard();calendarRunning=true;try{await runCalendars(db,source.subject!,destination.subject!,p=>{calendarProgress=p;win?.webContents.send('calendar-progress',p)});return dashboard()}finally{calendarRunning=false}});
 ipcMain.handle('calendar-export',async()=>{const r=await dialog.showOpenDialog(win!,{title:'Choose Calendar backup folder',properties:['openDirectory','createDirectory']});if(r.canceled)return null;return exportCalendars(r.filePaths[0])});
 ipcMain.handle('calendar-verify-destination',async()=>{const{source,destination}=gmailAccounts();calendarProgress={operation:'Destination-only Calendar verification',...await verifyCalendarsDestinationOnly(db,source.subject!,destination.subject!)};return dashboard()});
+ipcMain.handle('takeout-scan',async()=>{const source=await dialog.showOpenDialog(win!,{title:'Choose extracted Google Takeout folder',properties:['openDirectory']});if(source.canceled)return dashboard();const output=await dialog.showOpenDialog(win!,{title:'Choose a separate folder for checksum evidence',properties:['openDirectory','createDirectory']});if(output.canceled)return dashboard();preservationRunning=true;try{const result=await scanTakeout(source.filePaths[0],output.filePaths[0],p=>{preservationProgress=p;win?.webContents.send('preservation-progress',p)});db.setSetting('takeoutResult',result);return dashboard()}finally{preservationRunning=false}});
 ipcMain.handle("drive-pause", () => {
   if (!activeJob) return dashboard();
   runner.pause();

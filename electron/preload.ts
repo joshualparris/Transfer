@@ -52,6 +52,8 @@ const lifeboat: LifeboatApi = {
   exportCalendars:()=>ipcRenderer.invoke('calendar-export'),
   verifyCalendarDestinationOnly:()=>ipcRenderer.invoke('calendar-verify-destination'),
   onCalendarProgress:(fn)=>listen('calendar-progress',fn),
+  scanTakeout:()=>ipcRenderer.invoke('takeout-scan'),
+  onPreservationProgress:(fn)=>listen('preservation-progress',fn),
 };
 
 contextBridge.exposeInMainWorld("lifeboat", lifeboat);

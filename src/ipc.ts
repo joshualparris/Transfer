@@ -58,4 +58,6 @@ export interface LifeboatApi {
   exportCalendars:()=>Promise<string[]|null>;
   verifyCalendarDestinationOnly:()=>Promise<DashboardData>;
   onCalendarProgress:(fn:(progress:any)=>void)=>()=>void;
+  scanTakeout:()=>Promise<DashboardData>;
+  onPreservationProgress:(fn:(progress:any)=>void)=>()=>void;
 }

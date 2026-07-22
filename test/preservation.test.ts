@@ -1,0 +1,1 @@
+import{describe,expect,it}from'vitest';import{findRclone}from'../electron/rclone';describe('preservation tooling',()=>{it('discovers the installed rclone even when it is absent from PATH',()=>expect(findRclone()?.version).toMatch(/^rclone v/))});
