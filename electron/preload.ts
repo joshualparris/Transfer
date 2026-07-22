@@ -1,3 +1,44 @@
-import{contextBridge,ipcRenderer}from'electron';
-const listen=(channel:string,fn:(p:any)=>void)=>{const h=(_e:unknown,p:any)=>fn(p);ipcRenderer.on(channel,h);return()=>ipcRenderer.removeListener(channel,h)};
-contextBridge.exposeInMainWorld('lifeboat',{dashboard:()=>ipcRenderer.invoke('dashboard'),pickClient:()=>ipcRenderer.invoke('pick-client'),connect:(r:'source'|'destination')=>ipcRenderer.invoke('connect',r),disconnect:(r:'source'|'destination')=>ipcRenderer.invoke('disconnect',r),saveSettings:(v:unknown)=>ipcRenderer.invoke('save-settings',v),runInventory:()=>ipcRenderer.invoke('run-inventory'),cancelInventory:()=>ipcRenderer.invoke('cancel-inventory'),onInventoryProgress:(fn:(p:any)=>void)=>listen('inventory-progress',fn),exportReports:()=>ipcRenderer.invoke('export-reports'),detectRclone:()=>ipcRenderer.invoke('rclone-detect'),setDriveRemote:(r:string)=>ipcRenderer.invoke('drive-set-remote',r),rcloneAbout:(r:string)=>ipcRenderer.invoke('rclone-about',r),pickDriveDestination:()=>ipcRenderer.invoke('drive-pick-destination'),testDriveDestination:(p:string)=>ipcRenderer.invoke('drive-test-destination',p),discoverDrive:()=>ipcRenderer.invoke('drive-discover'),drivePage:(o=0,l=100,s=false)=>ipcRenderer.invoke('drive-page',o,l,s),startDrive:(v:unknown)=>ipcRenderer.invoke('drive-start',v),pauseDrive:()=>ipcRenderer.invoke('drive-pause'),verifyDrive:(v:unknown)=>ipcRenderer.invoke('drive-verify',v),onDriveProgress:(fn:(p:any)=>void)=>listen('drive-progress',fn),authorizeGmail:(feature:'copy'|'settings')=>ipcRenderer.invoke('gmail-authorize',feature),saveGmailConfig:(v:unknown)=>ipcRenderer.invoke('gmail-save-config',v),pickGmailArchive:()=>ipcRenderer.invoke('gmail-pick-archive'),discoverGmail:(v:unknown)=>ipcRenderer.invoke('gmail-discover',v),startGmail:(v:unknown)=>ipcRenderer.invoke('gmail-start',v),pauseGmail:()=>ipcRenderer.invoke('gmail-pause'),gmailPage:(o=0,l=100)=>ipcRenderer.invoke('gmail-page',o,l),forwardingAudit:()=>ipcRenderer.invoke('gmail-forwarding-audit'),updateVacation:(v:unknown)=>ipcRenderer.invoke('gmail-vacation',v),onGmailProgress:(fn:(p:any)=>void)=>listen('gmail-progress',fn)});
+import { contextBridge, ipcRenderer } from "electron";
+import type { LifeboatApi } from "../src/ipc";
+
+const listen = (channel: string, fn: (p: any) => void) => {
+  const handler = (_event: unknown, payload: any) => fn(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
+
+const lifeboat: LifeboatApi = {
+  dashboard: () => ipcRenderer.invoke("dashboard"),
+  pickClient: () => ipcRenderer.invoke("pick-client"),
+  connect: (role) => ipcRenderer.invoke("connect", role),
+  disconnect: (role) => ipcRenderer.invoke("disconnect", role),
+  saveSettings: (value) => ipcRenderer.invoke("save-settings", value),
+  runInventory: () => ipcRenderer.invoke("run-inventory"),
+  cancelInventory: () => ipcRenderer.invoke("cancel-inventory"),
+  onInventoryProgress: (fn) => listen("inventory-progress", fn),
+  exportReports: () => ipcRenderer.invoke("export-reports"),
+  detectRclone: () => ipcRenderer.invoke("rclone-detect"),
+  setDriveRemote: (remote) => ipcRenderer.invoke("drive-set-remote", remote),
+  rcloneAbout: (remote) => ipcRenderer.invoke("rclone-about", remote),
+  pickDriveDestination: () => ipcRenderer.invoke("drive-pick-destination"),
+  testDriveDestination: (path) => ipcRenderer.invoke("drive-test-destination", path),
+  discoverDrive: () => ipcRenderer.invoke("drive-discover"),
+  drivePage: (offset = 0, limit = 100, shared = false) =>
+    ipcRenderer.invoke("drive-page", offset, limit, shared),
+  startDrive: (value) => ipcRenderer.invoke("drive-start", value),
+  pauseDrive: () => ipcRenderer.invoke("drive-pause"),
+  verifyDrive: (value) => ipcRenderer.invoke("drive-verify", value),
+  onDriveProgress: (fn) => listen("drive-progress", fn),
+  authorizeGmail: (feature) => ipcRenderer.invoke("gmail-authorize", feature),
+  saveGmailConfig: (value) => ipcRenderer.invoke("gmail-save-config", value),
+  pickGmailArchive: () => ipcRenderer.invoke("gmail-pick-archive"),
+  discoverGmail: (value) => ipcRenderer.invoke("gmail-discover", value),
+  startGmail: (value) => ipcRenderer.invoke("gmail-start", value),
+  pauseGmail: () => ipcRenderer.invoke("gmail-pause"),
+  gmailPage: (offset = 0, limit = 100) => ipcRenderer.invoke("gmail-page", offset, limit),
+  forwardingAudit: () => ipcRenderer.invoke("gmail-forwarding-audit"),
+  updateVacation: (value) => ipcRenderer.invoke("gmail-vacation", value),
+  onGmailProgress: (fn) => listen("gmail-progress", fn),
+};
+
+contextBridge.exposeInMainWorld("lifeboat", lifeboat);
