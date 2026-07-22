@@ -22,9 +22,16 @@ export default function GmailPage({
   const source = data.accounts.find((a) => a.role === "source");
   const destination = data.accounts.find((a) => a.role === "destination");
 
-  const copyGranted = destination?.scopes.includes("https://www.googleapis.com/auth/gmail.insert") &&
-    destination?.scopes.includes("https://www.googleapis.com/auth/gmail.labels");
-  const settingsGranted = source?.scopes.includes("https://www.googleapis.com/auth/gmail.settings.basic");
+  const copyGranted =
+    destination?.scopes.includes(
+      "https://www.googleapis.com/auth/gmail.insert",
+    ) &&
+    destination?.scopes.includes(
+      "https://www.googleapis.com/auth/gmail.labels",
+    );
+  const settingsGranted = source?.scopes.includes(
+    "https://www.googleapis.com/auth/gmail.settings.basic",
+  );
 
   return (
     <>
@@ -32,17 +39,40 @@ export default function GmailPage({
         <div className="paneltitle">
           <div>
             <p className="eyebrow">GMAIL IDENTITIES</p>
-            <h2>{source?.email ?? "Source not connected"} → {destination?.email ?? "Destination not connected"}</h2>
+            <h2>
+              {source?.email ?? "Source not connected"} →{" "}
+              {destination?.email ?? "Destination not connected"}
+            </h2>
           </div>
           <span>{data.gmail.running ? "Running" : "Resumable"}</span>
         </div>
-        <p>Source access is read-only. Destination insertion never sends messages. Stable Google account IDs must differ.</p>
+        <p>
+          Source access is read-only. Destination insertion never sends
+          messages. Stable Google account IDs must differ.
+        </p>
         <div className="actions">
-          <button disabled={busy || copyGranted} onClick={() => act("gmail-auth", () => window.lifeboat.authorizeGmail("copy"))}>
-            {copyGranted ? "Copy access authorised" : "Authorise destination copy + drafts"}
+          <button
+            disabled={busy}
+            onClick={() =>
+              act("gmail-auth", () => window.lifeboat.authorizeGmail("copy"))
+            }
+          >
+            {copyGranted
+              ? "Re-authorise destination copy + drafts"
+              : "Authorise destination copy + drafts"}
           </button>
-          <button className="secondary" disabled={busy || settingsGranted} onClick={() => act("settings-auth", () => window.lifeboat.authorizeGmail("settings"))}>
-            {settingsGranted ? "Settings access authorised" : "Authorise source vacation settings"}
+          <button
+            className="secondary"
+            disabled={busy || settingsGranted}
+            onClick={() =>
+              act("settings-auth", () =>
+                window.lifeboat.authorizeGmail("settings"),
+              )
+            }
+          >
+            {settingsGranted
+              ? "Settings access authorised"
+              : "Authorise source vacation settings"}
           </button>
         </div>
       </section>
@@ -67,11 +97,24 @@ export default function GmailPage({
       <section className="panel form">
         <label>
           Mailbox query
-          <input value={config.query} onChange={(event) => setConfig({ ...config, query: event.target.value })} />
+          <input
+            value={config.query}
+            onChange={(event) =>
+              setConfig({ ...config, query: event.target.value })
+            }
+          />
         </label>
         <label>
           Migration method
-          <select value={config.method} onChange={(event) => setConfig({ ...config, method: event.target.value as GmailConfig["method"] })}>
+          <select
+            value={config.method}
+            onChange={(event) =>
+              setConfig({
+                ...config,
+                method: event.target.value as GmailConfig["method"],
+              })
+            }
+          >
             <option value="insert">Insert — recommended</option>
             <option value="import">Import — delivery scanning</option>
           </select>
@@ -80,41 +123,83 @@ export default function GmailPage({
           <input
             type="checkbox"
             checked={config.includeDrafts}
-            onChange={(event) => setConfig({ ...config, includeDrafts: event.target.checked })}
+            onChange={(event) =>
+              setConfig({ ...config, includeDrafts: event.target.checked })
+            }
           />
           Include drafts
         </label>
-        <p className="warning">Cornerstone Lifeboat never sends migrated drafts.</p>
+        <p className="warning">
+          Cornerstone Lifeboat never sends migrated drafts.
+        </p>
         <label>
           Optional protected raw archive
-          <input readOnly value={config.archivePath ?? ""} placeholder="Not enabled" />
+          <input
+            readOnly
+            value={config.archivePath ?? ""}
+            placeholder="Not enabled"
+          />
         </label>
         <div className="actions">
-          <button className="secondary" onClick={() => act("archive", () => window.lifeboat.pickGmailArchive())}>
+          <button
+            className="secondary"
+            onClick={() =>
+              act("archive", () => window.lifeboat.pickGmailArchive())
+            }
+          >
             Choose archive folder
           </button>
-          <button disabled={busy || data.gmail.running} onClick={() => act("discover-mail", () => window.lifeboat.discoverGmail(config))}>
+          <button
+            disabled={busy || data.gmail.running}
+            onClick={() =>
+              act("discover-mail", () => window.lifeboat.discoverGmail(config))
+            }
+          >
             Dry-run discovery
           </button>
           {data.gmail.running ? (
-            <button className="danger" onClick={() => act("pause-mail", () => window.lifeboat.pauseGmail())}>
+            <button
+              className="danger"
+              onClick={() =>
+                act("pause-mail", () => window.lifeboat.pauseGmail())
+              }
+            >
               Pause after current message
             </button>
           ) : (
-            <button disabled={busy || !copyGranted} onClick={() => act("start-mail", () => window.lifeboat.startGmail(config))}>
+            <button
+              disabled={busy || !copyGranted}
+              onClick={() =>
+                act("start-mail", () => window.lifeboat.startGmail(config))
+              }
+            >
               Start confirmed migration
             </button>
           )}
         </div>
-        <p>{data.gmail.progress.operation ?? "Idle"} {data.gmail.progress.processed ? `· ${new Intl.NumberFormat().format(data.gmail.progress.processed)} processed` : ""}</p>
+        <p>
+          {data.gmail.progress.operation ?? "Idle"}{" "}
+          {data.gmail.progress.processed
+            ? `· ${new Intl.NumberFormat().format(data.gmail.progress.processed)} processed`
+            : ""}
+        </p>
       </section>
       <section className="panel">
         <h2>Forwarding and vacation responder</h2>
         <p>
-          Forwarding creation is administrator-dependent and cannot be performed by desktop OAuth. Lifeboat audits the current setting. Vacation response is a separate, confirmed source-account write enabled only after message verification.
+          Forwarding creation is administrator-dependent and cannot be performed
+          by desktop OAuth. Lifeboat audits the current setting. Vacation
+          response is a separate, confirmed source-account write enabled only
+          after message verification.
         </p>
         <div className="actions">
-          <button className="secondary" disabled={!settingsGranted || busy} onClick={async () => setAudit(await window.lifeboat.forwardingAudit())}>
+          <button
+            className="secondary"
+            disabled={!settingsGranted || busy}
+            onClick={async () =>
+              setAudit(await window.lifeboat.forwardingAudit())
+            }
+          >
             Audit forwarding
           </button>
         </div>
@@ -122,13 +207,29 @@ export default function GmailPage({
         <div className="form">
           <label>
             Auto-reply subject
-            <input value={vacSubject} onChange={(event) => setVacSubject(event.target.value)} />
+            <input
+              value={vacSubject}
+              onChange={(event) => setVacSubject(event.target.value)}
+            />
           </label>
           <label>
             Auto-reply message
-            <textarea value={vacBody} onChange={(event) => setVacBody(event.target.value)} />
+            <textarea
+              value={vacBody}
+              onChange={(event) => setVacBody(event.target.value)}
+            />
           </label>
-          <button disabled={!settingsGranted || !data.gmail.stats.verified || busy} onClick={() => act("vacation", () => window.lifeboat.updateVacation({ subject: vacSubject, body: vacBody }))}>
+          <button
+            disabled={!settingsGranted || !data.gmail.stats.verified || busy}
+            onClick={() =>
+              act("vacation", () =>
+                window.lifeboat.updateVacation({
+                  subject: vacSubject,
+                  body: vacBody,
+                }),
+              )
+            }
+          >
             Review and enable vacation responder
           </button>
         </div>

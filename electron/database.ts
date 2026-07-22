@@ -17,14 +17,18 @@ export class LifeboatDatabase {
 CREATE TABLE IF NOT EXISTS drive_manifest(source_id TEXT PRIMARY KEY,name TEXT NOT NULL,mime_type TEXT NOT NULL,parent_ids_json TEXT NOT NULL,resolved_path TEXT NOT NULL,relative_path TEXT NOT NULL,size INTEGER,created_time TEXT,modified_time TEXT,md5 TEXT,is_native INTEGER NOT NULL,is_folder INTEGER NOT NULL,is_shortcut INTEGER NOT NULL,shortcut_target_id TEXT,owned INTEGER NOT NULL,owner_name TEXT,owner_email TEXT,shared INTEGER NOT NULL,trashed INTEGER NOT NULL,export_extension TEXT,can_download INTEGER,can_copy INTEGER,permissions_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'discovered',verification TEXT,last_error TEXT,updated_at TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_drive_status ON drive_manifest(status);CREATE INDEX IF NOT EXISTS idx_drive_shared ON drive_manifest(shared);
 CREATE TABLE IF NOT EXISTS backup_jobs(id TEXT PRIMARY KEY,type TEXT NOT NULL,status TEXT NOT NULL,source_remote TEXT NOT NULL,destination TEXT NOT NULL,rclone_path TEXT NOT NULL,rclone_version TEXT NOT NULL,args_json TEXT NOT NULL,progress_json TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,last_error TEXT,verification_json TEXT,UNIQUE(type,destination,status));CREATE INDEX IF NOT EXISTS idx_jobs_status ON backup_jobs(status);
 CREATE TABLE IF NOT EXISTS backup_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT NOT NULL,created_at TEXT NOT NULL,line TEXT NOT NULL,FOREIGN KEY(job_id) REFERENCES backup_jobs(id));CREATE TABLE IF NOT EXISTS gmail_runs(id TEXT PRIMARY KEY,status TEXT NOT NULL,source_subject TEXT NOT NULL,source_email TEXT NOT NULL,destination_subject TEXT NOT NULL,destination_email TEXT NOT NULL,query TEXT NOT NULL,method TEXT NOT NULL,include_drafts INTEGER NOT NULL,archive_path TEXT,progress_json TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,last_error TEXT);CREATE TABLE IF NOT EXISTS gmail_messages(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_message_id TEXT NOT NULL,source_thread_id TEXT,destination_message_id TEXT,destination_thread_id TEXT,source_draft_id TEXT,destination_draft_id TEXT,rfc_message_id_hash TEXT,internal_date TEXT,date_hash TEXT,from_domain TEXT,subject_hash TEXT,size_estimate INTEGER,raw_sha256 TEXT,semantic_fingerprint TEXT,attachment_count INTEGER,attachment_fingerprint TEXT,source_labels_json TEXT NOT NULL,destination_labels_json TEXT NOT NULL,method TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at TEXT,last_error_code TEXT,last_error TEXT,created_at TEXT NOT NULL,started_at TEXT,completed_at TEXT,verification_status TEXT,verification_json TEXT NOT NULL,UNIQUE(source_subject,destination_subject,source_message_id));CREATE INDEX IF NOT EXISTS idx_gmail_status ON gmail_messages(status,next_attempt_at);CREATE TABLE IF NOT EXISTS gmail_label_map(source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_label_id TEXT NOT NULL,source_name TEXT NOT NULL,destination_label_id TEXT,destination_name TEXT NOT NULL,status TEXT NOT NULL,last_error TEXT,PRIMARY KEY(source_subject,destination_subject,source_label_id));CREATE TABLE IF NOT EXISTS gmail_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,run_id TEXT NOT NULL,created_at TEXT NOT NULL,event TEXT NOT NULL,details_json TEXT NOT NULL);`);
-    this.db.exec(`CREATE TABLE IF NOT EXISTS contacts_runs(id TEXT PRIMARY KEY,source_subject TEXT NOT NULL,source_email_at_inventory TEXT NOT NULL,destination_subject TEXT NOT NULL,destination_email TEXT NOT NULL,mode TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,completed_at TEXT,filter_settings_json TEXT NOT NULL,verification_json TEXT NOT NULL,last_error TEXT);
+    this.db
+      .exec(`CREATE TABLE IF NOT EXISTS contacts_runs(id TEXT PRIMARY KEY,source_subject TEXT NOT NULL,source_email_at_inventory TEXT NOT NULL,destination_subject TEXT NOT NULL,destination_email TEXT NOT NULL,mode TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,completed_at TEXT,filter_settings_json TEXT NOT NULL,verification_json TEXT NOT NULL,last_error TEXT);
 CREATE TABLE IF NOT EXISTS contacts_manifest(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_resource_name TEXT NOT NULL,destination_resource_name TEXT,source_etag TEXT,source_type TEXT NOT NULL,semantic_fingerprint TEXT NOT NULL,field_presence_json TEXT NOT NULL,group_memberships_json TEXT NOT NULL,photo_present INTEGER NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,next_attempt_at TEXT,last_error_code TEXT,redacted_last_error TEXT,created_at TEXT NOT NULL,copied_at TEXT,verification_status TEXT,verification_json TEXT NOT NULL,UNIQUE(source_subject,destination_subject,source_resource_name));CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts_manifest(status,next_attempt_at);
 CREATE TABLE IF NOT EXISTS contact_group_map(run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_group_resource TEXT NOT NULL,source_group_name_hash TEXT NOT NULL,destination_group_resource TEXT,destination_group_name TEXT NOT NULL,group_type TEXT NOT NULL,status TEXT NOT NULL,verification_status TEXT,PRIMARY KEY(source_subject,destination_subject,source_group_resource));
 CREATE TABLE IF NOT EXISTS other_contacts_manifest(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_resource_name TEXT NOT NULL,semantic_fingerprint TEXT NOT NULL,available_fields_json TEXT NOT NULL,selected_for_conversion INTEGER NOT NULL,destination_resource_name TEXT,status TEXT NOT NULL,verification_status TEXT,UNIQUE(source_subject,destination_subject,source_resource_name));`);
-    this.db.exec(`CREATE TABLE IF NOT EXISTS calendar_runs_v2(id TEXT PRIMARY KEY,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,completed_at TEXT,last_error TEXT);
+    this.db
+      .exec(`CREATE TABLE IF NOT EXISTS calendar_runs_v2(id TEXT PRIMARY KEY,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,completed_at TEXT,last_error TEXT);
 CREATE TABLE IF NOT EXISTS calendar_map_v2(source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_calendar_id TEXT NOT NULL,source_name TEXT NOT NULL,destination_calendar_id TEXT,status TEXT NOT NULL,PRIMARY KEY(source_subject,destination_subject,source_calendar_id));
 CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NOT NULL,source_subject TEXT NOT NULL,destination_subject TEXT NOT NULL,source_calendar_id TEXT NOT NULL,source_event_id TEXT NOT NULL,destination_calendar_id TEXT,destination_event_id TEXT,ical_uid TEXT,summary_hash TEXT,start_json TEXT NOT NULL,end_json TEXT NOT NULL,recurrence_json TEXT NOT NULL,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT,verification_status TEXT,UNIQUE(source_subject,destination_subject,source_calendar_id,source_event_id));CREATE INDEX IF NOT EXISTS idx_calendar_events_v2_status ON calendar_events_v2(status);`);
-    this.db.exec(`CREATE TABLE IF NOT EXISTS operation_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,module TEXT NOT NULL,level TEXT NOT NULL,message TEXT NOT NULL,details_json TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(created_at DESC);CREATE INDEX IF NOT EXISTS idx_operation_logs_module ON operation_logs(module,created_at DESC);`);
+    this.db.exec(
+      `CREATE TABLE IF NOT EXISTS operation_logs(id INTEGER PRIMARY KEY AUTOINCREMENT,created_at TEXT NOT NULL,module TEXT NOT NULL,level TEXT NOT NULL,message TEXT NOT NULL,details_json TEXT NOT NULL);CREATE INDEX IF NOT EXISTS idx_operation_logs_time ON operation_logs(created_at DESC);CREATE INDEX IF NOT EXISTS idx_operation_logs_module ON operation_logs(module,created_at DESC);`,
+    );
   }
   private ensureColumns() {
     try {
@@ -57,10 +61,26 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
         "UPDATE gmail_messages SET status='failed-retryable',last_error='Recovered after interruption' WHERE status IN ('copying','verifying')",
       )
       .run();
-    this.db.prepare("UPDATE contacts_manifest SET status='failed-retryable',redacted_last_error='Recovered after interruption' WHERE status IN ('copying','verifying')").run();
-    this.db.prepare("UPDATE contacts_runs SET status='interrupted',completed_at=? WHERE status IN ('running','verifying')").run(new Date().toISOString());
-    this.db.prepare("UPDATE calendar_events_v2 SET status='failed-retryable',last_error='Recovered after interruption' WHERE status IN ('copying','verifying')").run();
-    this.db.prepare("UPDATE calendar_runs_v2 SET status='interrupted',completed_at=? WHERE status='running'").run(new Date().toISOString());
+    this.db
+      .prepare(
+        "UPDATE contacts_manifest SET status='failed-retryable',redacted_last_error='Recovered after interruption' WHERE status IN ('copying','verifying')",
+      )
+      .run();
+    this.db
+      .prepare(
+        "UPDATE contacts_runs SET status='interrupted',completed_at=? WHERE status IN ('running','verifying')",
+      )
+      .run(new Date().toISOString());
+    this.db
+      .prepare(
+        "UPDATE calendar_events_v2 SET status='failed-retryable',last_error='Recovered after interruption' WHERE status IN ('copying','verifying')",
+      )
+      .run();
+    this.db
+      .prepare(
+        "UPDATE calendar_runs_v2 SET status='interrupted',completed_at=? WHERE status='running'",
+      )
+      .run(new Date().toISOString());
   }
   close() {
     this.db.close();
@@ -420,13 +440,20 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
         );
     return { id, inserted: r.changes === 1 };
   }
-  nextGmail(limit = 3,sourceSubject?:string,destinationSubject?:string) {
-    const identity=sourceSubject&&destinationSubject?' AND source_subject=? AND destination_subject=?':'';
+  nextGmail(limit = 3, sourceSubject?: string, destinationSubject?: string) {
+    const identity =
+      sourceSubject && destinationSubject
+        ? " AND source_subject=? AND destination_subject=?"
+        : "";
     return this.db
       .prepare(
         `SELECT * FROM gmail_messages WHERE status IN ('discovered','failed-retryable') AND (next_attempt_at IS NULL OR next_attempt_at<=?)${identity} ORDER BY created_at LIMIT ?`,
       )
-      .all(...(identity?[new Date().toISOString(),sourceSubject,destinationSubject,limit]:[new Date().toISOString(),limit])) as any[];
+      .all(
+        ...(identity
+          ? [new Date().toISOString(), sourceSubject, destinationSubject, limit]
+          : [new Date().toISOString(), limit]),
+      ) as any[];
   }
   gmailPair(
     sourceSubject: string,
@@ -504,6 +531,18 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
         id,
       );
   }
+  retryGmailPermissionFailures(sourceSubject: string, destinationSubject: string) {
+    return this.db
+      .prepare(
+        `UPDATE gmail_messages
+         SET status='failed-retryable',next_attempt_at=NULL,last_error_code=NULL,
+             last_error='Permission repaired; queued for safe retry'
+         WHERE source_subject=? AND destination_subject=?
+           AND status='failed-permanent' AND destination_message_id IS NULL
+           AND (last_error_code='403' OR lower(COALESCE(last_error,'')) LIKE '%insufficient authentication scope%')`,
+      )
+      .run(sourceSubject, destinationSubject).changes;
+  }
   gmailStats() {
     return this.db
       .prepare(
@@ -518,7 +557,13 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
       )
       .all(limit, offset);
   }
-  gmailLabelCounts(sourceSubject:string,destinationSubject:string){return this.db.prepare("SELECT j.value source_label_id,count(*) count FROM gmail_messages,json_each(gmail_messages.source_labels_json) j WHERE source_subject=? AND destination_subject=? AND status='verified' GROUP BY j.value").all(sourceSubject,destinationSubject)as any[]}
+  gmailLabelCounts(sourceSubject: string, destinationSubject: string) {
+    return this.db
+      .prepare(
+        "SELECT j.value source_label_id,count(*) count FROM gmail_messages,json_each(gmail_messages.source_labels_json) j WHERE source_subject=? AND destination_subject=? AND status='verified' GROUP BY j.value",
+      )
+      .all(sourceSubject, destinationSubject) as any[];
+  }
   upsertLabelMap(x: {
     sourceSubject: string;
     destinationSubject: string;
@@ -558,21 +603,83 @@ CREATE TABLE IF NOT EXISTS calendar_events_v2(id TEXT PRIMARY KEY,run_id TEXT NO
       )
       .run(runId, new Date().toISOString(), event, JSON.stringify(details));
   }
-  activityLog(module:string,level:string,message:string,details:unknown={}){
-    this.db.prepare("INSERT INTO operation_logs(created_at,module,level,message,details_json) VALUES(?,?,?,?,?)").run(new Date().toISOString(),module,level,message.slice(0,1000),JSON.stringify(details));
-    this.db.prepare("DELETE FROM operation_logs WHERE id NOT IN (SELECT id FROM operation_logs ORDER BY id DESC LIMIT 20000)").run();
+  activityLog(
+    module: string,
+    level: string,
+    message: string,
+    details: unknown = {},
+  ) {
+    this.db
+      .prepare(
+        "INSERT INTO operation_logs(created_at,module,level,message,details_json) VALUES(?,?,?,?,?)",
+      )
+      .run(
+        new Date().toISOString(),
+        module,
+        level,
+        message.slice(0, 1000),
+        JSON.stringify(details),
+      );
+    this.db
+      .prepare(
+        "DELETE FROM operation_logs WHERE id NOT IN (SELECT id FROM operation_logs ORDER BY id DESC LIMIT 20000)",
+      )
+      .run();
   }
-  activityLogs(limit=1000){
-    const own=this.db.prepare("SELECT created_at,module,level,message,details_json details FROM operation_logs ORDER BY id DESC LIMIT ?").all(limit) as any[];
-    const drive=this.db.prepare("SELECT created_at,'rclone' module,CASE WHEN line LIKE '%ERROR%' OR line LIKE '%Failed%' THEN 'error' ELSE 'info' END level,line message,'{}' details FROM backup_logs ORDER BY id DESC LIMIT ?").all(Math.min(limit,500)) as any[];
-    const gmail=this.db.prepare("SELECT created_at,'gmail' module,'info' level,event message,details_json details FROM gmail_logs ORDER BY id DESC LIMIT ?").all(Math.min(limit,500)) as any[];
-    return [...own,...drive,...gmail].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,limit);
+  activityLogs(limit = 1000) {
+    const own = this.db
+      .prepare(
+        "SELECT created_at,module,level,message,details_json details FROM operation_logs ORDER BY id DESC LIMIT ?",
+      )
+      .all(limit) as any[];
+    const drive = this.db
+      .prepare(
+        "SELECT created_at,'rclone' module,CASE WHEN line LIKE '%ERROR%' OR line LIKE '%Failed%' THEN 'error' ELSE 'info' END level,line message,'{}' details FROM backup_logs ORDER BY id DESC LIMIT ?",
+      )
+      .all(Math.min(limit, 500)) as any[];
+    const gmail = this.db
+      .prepare(
+        "SELECT created_at,'gmail' module,'info' level,event message,details_json details FROM gmail_logs ORDER BY id DESC LIMIT ?",
+      )
+      .all(Math.min(limit, 500)) as any[];
+    return [...own, ...drive, ...gmail]
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .slice(0, limit);
   }
-  failureDiagnostics(){
-    const queries=[["gmail","SELECT COALESCE(last_error_code,'unknown') code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM gmail_messages WHERE status LIKE 'failed%' GROUP BY last_error_code,last_error ORDER BY count DESC LIMIT 20"],["contacts","SELECT status code,COALESCE(redacted_last_error,'Review or duplicate decision required') message,count(*) count FROM contacts_manifest WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,redacted_last_error ORDER BY count DESC LIMIT 20"],["calendar","SELECT status code,COALESCE(last_error,'Verification or retry required') message,count(*) count FROM calendar_events_v2 WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,last_error ORDER BY count DESC LIMIT 20"],["drive","SELECT status code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM backup_jobs WHERE status IN ('failed','interrupted') GROUP BY status,last_error ORDER BY count DESC LIMIT 20"]] as const;
-    return queries.flatMap(([module,sql])=>(this.db.prepare(sql).all() as any[]).map(x=>({module,...x,message:String(x.message).slice(0,500)})));
+  failureDiagnostics() {
+    const queries = [
+      [
+        "gmail",
+        "SELECT COALESCE(last_error_code,'unknown') code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM gmail_messages WHERE status LIKE 'failed%' GROUP BY last_error_code,last_error ORDER BY count DESC LIMIT 20",
+      ],
+      [
+        "contacts",
+        "SELECT status code,COALESCE(redacted_last_error,'Review or duplicate decision required') message,count(*) count FROM contacts_manifest WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,redacted_last_error ORDER BY count DESC LIMIT 20",
+      ],
+      [
+        "calendar",
+        "SELECT status code,COALESCE(last_error,'Verification or retry required') message,count(*) count FROM calendar_events_v2 WHERE status LIKE 'failed%' OR status='manual-action-required' GROUP BY status,last_error ORDER BY count DESC LIMIT 20",
+      ],
+      [
+        "drive",
+        "SELECT status code,COALESCE(last_error,'No detail recorded') message,count(*) count FROM backup_jobs WHERE status='failed' GROUP BY status,last_error ORDER BY count DESC LIMIT 20",
+      ],
+    ] as const;
+    return queries.flatMap(([module, sql]) =>
+      (this.db.prepare(sql).all() as any[]).map((x) => ({
+        module,
+        ...x,
+        message: String(x.message).slice(0, 500),
+      })),
+    );
   }
-  phaseRun(sql:string,...args:any[]){return this.db.prepare(sql).run(...args)}
-  phaseGet(sql:string,...args:any[]){return this.db.prepare(sql).get(...args) as any}
-  phaseAll(sql:string,...args:any[]){return this.db.prepare(sql).all(...args) as any[]}
+  phaseRun(sql: string, ...args: any[]) {
+    return this.db.prepare(sql).run(...args);
+  }
+  phaseGet(sql: string, ...args: any[]) {
+    return this.db.prepare(sql).get(...args) as any;
+  }
+  phaseAll(sql: string, ...args: any[]) {
+    return this.db.prepare(sql).all(...args) as any[];
+  }
 }

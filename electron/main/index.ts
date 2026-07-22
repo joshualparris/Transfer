@@ -863,6 +863,13 @@ ipcMain.handle("gmail-authorize", async (_e, feature: "copy" | "settings") => {
     ...acct,
     scopes: [...new Set([...(existing?.scopes ?? []), ...acct.scopes])],
   });
+  if (feature === "copy") {
+    const source = db.accounts().find((a) => a.role === "source");
+    if (source?.subject && acct.subject) {
+      const requeued = db.retryGmailPermissionFailures(source.subject, acct.subject);
+      recordActivity("gmail", { operation: "Gmail permission repaired", requeued });
+    }
+  }
   return dashboard();
 });
 ipcMain.handle("gmail-pick-archive", async () => {
@@ -934,13 +941,7 @@ ipcMain.handle("gmail-start", async (_e, v) => {
   if (gmailRun) throw new Error("Gmail work is already running");
   const cfg = gmailConfigSchema.parse(v),
     { source, destination } = gmailAccounts();
-  if (
-    !destination.scopes.includes(
-      "https://www.googleapis.com/auth/gmail.insert",
-    ) ||
-    !destination.scopes.includes("https://www.googleapis.com/auth/gmail.labels")
-  )
-    throw new Error("Authorise Gmail copy access first");
+  await assertGrantedScopes("destination", GMAIL_COPY_SCOPES);
   const confirm = await dialog.showMessageBox(win!, {
     type: "warning",
     buttons: ["Cancel", "Start Gmail migration"],
