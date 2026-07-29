@@ -101,7 +101,7 @@ export default function App() {
   const calendarBusy = Object.entries(actionState).some(
     ([label, item]) => label.startsWith("calendar-") && item.status === "running",
   );
-  const preservationBusy = running(["takeout-scan"]);
+  const preservationBusy = running(["takeout-scan", "takeout-import-photos"]);
 
   const page = {
     Overview: (
