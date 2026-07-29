@@ -59,5 +59,6 @@ export interface LifeboatApi {
   verifyCalendarDestinationOnly: () => Promise<DashboardData>;
   onCalendarProgress: (fn: (progress: any) => void) => () => void;
   scanTakeout: () => Promise<DashboardData>;
+  importPhotosTakeout: () => Promise<DashboardData>;
   onPreservationProgress: (fn: (progress: any) => void) => () => void;
 }
