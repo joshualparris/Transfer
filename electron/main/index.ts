@@ -45,7 +45,7 @@ import {
   runCalendars,
   verifyCalendarsDestinationOnly,
 } from "../calendar";
-import { scanTakeout } from "../preservation";
+import { importPhotosTakeoutArchives, scanTakeout } from "../preservation";
 import {
   discoverGmail,
   ensureLabels,
@@ -568,6 +568,58 @@ ipcMain.handle("takeout-scan", async () => {
       ...result,
       done: true,
     });
+    return dashboard();
+  } catch (e) {
+    recordActivity("preservation", { message: redact(e) }, "error");
+    throw e;
+  } finally {
+    preservationRunning = false;
+  }
+});
+ipcMain.handle("takeout-import-photos", async () => {
+  const archives = await dialog.showOpenDialog(win!, {
+    title: "Choose Google Photos Takeout archives",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: "Google Takeout archives", extensions: ["zip", "tgz", "gz", "tar"] },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  if (archives.canceled) return dashboard();
+  const destination = await dialog.showOpenDialog(win!, {
+    title: "Choose local/NAS destination folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (destination.canceled) return dashboard();
+  preservationRunning = true;
+  preservationProgress = { operation: "Starting Google Photos Takeout import" };
+  recordActivity("preservation", {
+    operation: "Starting Google Photos Takeout import",
+    archives: archives.filePaths.length,
+  });
+  try {
+    const result = await importPhotosTakeoutArchives(
+      archives.filePaths,
+      destination.filePaths[0],
+      (p) => {
+        preservationProgress = p;
+        recordActivity("preservation", p);
+        win?.webContents.send("preservation-progress", p);
+      },
+    );
+    db.setSetting("takeoutResult", result);
+    recordActivity(
+      "preservation",
+      {
+        operation: "Google Photos Takeout import complete",
+        files: result.files,
+        bytes: result.bytes,
+        photos: result.photos,
+        importedArchives: result.importedArchives,
+        done: true,
+      },
+      "info",
+    );
     return dashboard();
   } catch (e) {
     recordActivity("preservation", { message: redact(e) }, "error");
