@@ -6,6 +6,12 @@ Phase 3 adds Gmail copy and verification. No source deletion, Gmail send method,
 
 Phase 4 adds resumable Contacts and Calendar migration with destination pairing, duplicate/review safeguards, destination-only verification, CSV/vCard and ICS backups. Photos and Keep use checksum-verified Google Takeout preservation because Google does not expose a faithful consumer-account copy API for those products.
 
+The Photos + Keep preservation page can also import downloaded Google Photos
+Takeout archives into a selected local/NAS folder. It does not pull Photos
+directly from Google; export with Google Takeout first, then Lifeboat extracts
+the archive, classifies photo/video media and `.json` sidecar files, SHA-256
+hashes every extracted file, and writes JSON/CSV evidence files.
+
 ## Local data sensitivity
 
 OAuth credentials and the selected desktop OAuth client are stored in the operating-system credential vault, not SQLite. The local `lifeboat.db` nevertheless contains sensitive migration metadata: Drive names and paths, owner/permission identities, Gmail source IDs and labels, Contact resource identifiers, Calendar and event identifiers, account identities, statuses, hashes, and redacted errors. Optional raw `.eml`, full Contacts archives, Takeout inventories, reports, and database backups are written only to directories the user explicitly selects. Protect those directories and retain them only as long as needed.
@@ -32,6 +38,23 @@ Lifeboat never calls Gmail message-send or draft-send methods.
 6. Run **Verification**, review **Shared items**, and export the evidence bundle.
 
 Native export policy: Docs → DOCX, Sheets → XLSX, Slides → PPTX, Drawings → PDF. Revisions, comments, suggestions, permissions, linked Forms behavior, Apps Script bindings and some native features are not preserved.
+
+## Google Photos Takeout import
+
+1. While signed into the Cornerstone account, open Google Takeout and export
+   Google Photos.
+2. In Lifeboat, open **Photos + Keep**.
+3. Run **Import Photos Takeout to NAS**.
+4. Choose every downloaded Takeout archive part, then choose the local/NAS
+   destination folder.
+5. Lifeboat creates a dated `Google Photos Takeout ...` folder inside the
+   selected destination and writes `takeout-evidence-....json` and
+   `takeout-evidence-....csv`.
+
+Supported archive types are `.zip`, `.tgz`, `.tar.gz`, and `.tar`. On
+Linux/macOS, `.zip` extraction uses `unzip` and tar archives use `tar`. On
+Windows, `.zip` extraction uses PowerShell `Expand-Archive` and tar archives
+use `tar`.
 
 ## Run
 
