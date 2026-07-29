@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { mkdir, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -27,6 +28,53 @@ async function digest(file: string) {
   );
   return h.digest("hex");
 }
+
+function archiveKind(file: string) {
+  const lower = file.toLowerCase();
+  if (lower.endsWith(".zip")) return "zip";
+  if (lower.endsWith(".tgz") || lower.endsWith(".tar.gz")) return "tgz";
+  if (lower.endsWith(".tar")) return "tar";
+  return "";
+}
+
+function run(command: string, args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn(command, args, { windowsHide: true, shell: false });
+    let err = "";
+    proc.stderr.on("data", (d) => (err += d.toString()));
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(err || `${command} exited ${code}`));
+    });
+  });
+}
+
+async function extractArchive(archive: string, destination: string) {
+  const kind = archiveKind(archive);
+  if (!kind) throw new Error(`Unsupported archive type: ${path.basename(archive)}`);
+  await mkdir(destination, { recursive: true });
+
+  if (kind === "zip") {
+    if (process.platform === "win32") {
+      await run("powershell.exe", [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force",
+        archive,
+        destination,
+      ]);
+    } else {
+      await run("unzip", ["-oq", archive, "-d", destination]);
+    }
+    return;
+  }
+
+  await run("tar", ["-xf", archive, "-C", destination]);
+}
+
 export async function scanTakeout(root: string, output: string, progress?: (x: any) => void) {
   const base = path.resolve(root);
   if (base === path.parse(base).root)
@@ -95,4 +143,41 @@ export async function scanTakeout(root: string, output: string, progress?: (x: a
   }
   progress?.({ operation: "Takeout verification complete", ...summary });
   return summary;
+}
+
+export async function importPhotosTakeoutArchives(
+  archives: string[],
+  destination: string,
+  progress?: (x: any) => void,
+) {
+  if (!archives.length) throw new Error("Choose at least one Google Takeout archive");
+  const base = path.resolve(destination);
+  if (base === path.parse(base).root)
+    throw new Error("Choose a dedicated local/NAS backup folder, not a disk root");
+
+  for (const archive of archives) {
+    if (!archiveKind(archive))
+      throw new Error(`Unsupported archive type: ${path.basename(archive)}`);
+    await stat(archive);
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const importRoot = path.join(base, `Google Photos Takeout ${stamp}`);
+  await mkdir(importRoot, { recursive: true });
+
+  for (const [index, archive] of archives.entries()) {
+    progress?.({
+      operation: `Extracting ${path.basename(archive)}`,
+      current: index + 1,
+      total: archives.length,
+    });
+    await extractArchive(archive, importRoot);
+  }
+
+  const result = await scanTakeout(importRoot, importRoot, progress);
+  return {
+    ...result,
+    importedArchives: archives.length,
+    importFolder: importRoot,
+  };
 }
