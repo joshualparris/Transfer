@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { scanTakeout } from "../electron/preservation";
+import { organizeTakeoutFolder, scanTakeout } from "../electron/preservation";
 import { findRclone } from "../electron/rclone";
 
 describe("preservation tooling", () => {
@@ -33,5 +33,28 @@ describe("preservation tooling", () => {
     expect(evidenceFile).toBeTruthy();
     const evidence = await readFile(path.join(output, evidenceFile!), "utf8");
     expect(JSON.parse(evidence).summary.files).toBe(3);
+  });
+
+  it("organizes existing Takeout media into a dated gallery folder", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "lifeboat-takeout-source-"));
+    const output = await mkdtemp(path.join(os.tmpdir(), "lifeboat-takeout-organized-"));
+    const photos = path.join(root, "Takeout", "Google Photos", "Photos from 2020");
+    await mkdir(photos, { recursive: true });
+    await writeFile(path.join(photos, "beach.jpg"), "photo-bytes");
+    await writeFile(
+      path.join(photos, "beach.jpg.json"),
+      JSON.stringify({ photoTakenTime: { timestamp: "1577836800" } }),
+    );
+
+    const result = await organizeTakeoutFolder(root, output);
+
+    expect(result.media).toBe(1);
+    expect(result.sidecars).toBe(1);
+    expect(result.galleryFile.endsWith("photo-gallery.html")).toBe(true);
+    expect(await readFile(result.galleryFile, "utf8")).toContain("beach.jpg");
+    const evidence = JSON.parse(
+      await readFile(path.join(result.organizedFolder, "organized-evidence.json"), "utf8"),
+    );
+    expect(evidence.files).toBe(2);
   });
 });

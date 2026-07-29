@@ -159,6 +159,26 @@ h2 {
 .route i {
   color: #e7bc64;
 }
+.statusstrip {
+  background: #edf4ec;
+  border: 1px solid #c7dcc9;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0;
+  padding: 14px 16px;
+}
+.statusstrip b,
+.statusstrip span {
+  display: block;
+}
+.statusstrip span {
+  color: #51675b;
+  font-size: 14px;
+  margin-top: 3px;
+}
 button {
   border: 0;
   background: #d79a39;

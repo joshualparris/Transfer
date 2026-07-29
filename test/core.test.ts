@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { LifeboatDatabase } from "../electron/database";
+import { validateClientFile } from "../electron/google";
 import { redact, validateAccountRoles } from "../electron/security";
 import { exportReports } from "../electron/report";
 import type { InventorySnapshot } from "../electron/types";
@@ -25,6 +26,13 @@ describe("security", () => {
   it("redacts secrets", () => {
     expect(redact("Bearer abc.def")).not.toContain("abc.def");
     expect(redact('{"refresh_token":"1//secret"}')).not.toContain("secret");
+  });
+});
+describe("Google client files", () => {
+  it("rejects invalid OAuth client JSON with a friendly error", async () => {
+    const file = path.join(dir(), "client_secret.json");
+    await (await import("node:fs/promises")).writeFile(file, '{"not":"a desktop client"}');
+    await expect(validateClientFile(file)).rejects.toThrow(/valid Google OAuth desktop client/);
   });
 });
 describe("queue", () => {

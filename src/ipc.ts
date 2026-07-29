@@ -60,5 +60,7 @@ export interface LifeboatApi {
   onCalendarProgress: (fn: (progress: any) => void) => () => void;
   scanTakeout: () => Promise<DashboardData>;
   importPhotosTakeout: () => Promise<DashboardData>;
+  organizeTakeoutFolder: () => Promise<DashboardData>;
+  openTakeoutGallery: () => Promise<DashboardData>;
   onPreservationProgress: (fn: (progress: any) => void) => () => void;
 }

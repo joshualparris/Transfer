@@ -1,5 +1,7 @@
 import { useCallback, useReducer } from "react";
 
+const ACTION_TIMEOUT_MS = 100000;
+
 export type ActionStatus = "idle" | "running" | "success" | "error";
 
 export interface ActionState {
@@ -38,11 +40,31 @@ export function useActionManager() {
 
   const act = useCallback(async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
     dispatch({ type: "start", label });
+    let timeout: ReturnType<typeof setTimeout>;
+    let timedOut = false;
+    const action = fn().catch((error) => {
+      if (timedOut) return new Promise<never>(() => {});
+      throw error;
+    });
     try {
-      const result = await fn();
+      const result = await Promise.race([
+        action,
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => {
+            timedOut = true;
+            reject(
+              new Error(
+                "This action timed out. If an authorisation tab was closed or blocked, try again.",
+              ),
+            );
+          }, ACTION_TIMEOUT_MS);
+        }),
+      ]);
+      clearTimeout(timeout!);
       dispatch({ type: "success", label });
       return result;
     } catch (error) {
+      clearTimeout(timeout!);
       const message = error instanceof Error ? error.message : String(error);
       dispatch({ type: "failure", label, error: message });
       throw error;

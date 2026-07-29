@@ -38,15 +38,30 @@ export default function PreservationPage({
         >
           Import Photos Takeout to NAS
         </button>
+        <button
+          disabled={busy || p.running}
+          onClick={() =>
+            act("takeout-organize-folder", () => window.lifeboat.organizeTakeoutFolder())
+          }
+        >
+          Organize folder of Takeout zips
+        </button>
+        <button
+          className="secondary"
+          disabled={busy || !p.result?.galleryFile}
+          onClick={() => act("takeout-open-gallery", () => window.lifeboat.openTakeoutGallery())}
+        >
+          Open latest photo gallery
+        </button>
       </section>
       <div className="metrics">
         <div className="metric">
           <small>Photos / videos</small>
-          <b>{Number(p.result?.photos ?? 0).toLocaleString()}</b>
+          <b>{Number(p.result?.photos ?? p.result?.media ?? 0).toLocaleString()}</b>
         </div>
         <div className="metric">
-          <small>Keep files</small>
-          <b>{Number(p.result?.keep ?? 0).toLocaleString()}</b>
+          <small>Sidecars / Keep</small>
+          <b>{Number(p.result?.sidecars ?? p.result?.keep ?? 0).toLocaleString()}</b>
         </div>
         <div className="metric">
           <small>Total files</small>
@@ -70,8 +85,13 @@ export default function PreservationPage({
             evidence-output folder.
           </li>
           <li>Keep both the extracted archive and generated JSON/CSV checksum manifests.</li>
+          <li>
+            Google Photos upload can be added as an append-only destination workflow, but it cannot
+            faithfully compare with or manage photos already in the target library.
+          </li>
         </ol>
         <p>{p.progress?.operation ?? "No Takeout folder verified yet."}</p>
+        {p.result?.organizedFolder && <p>Organized folder: {p.result.organizedFolder}</p>}
       </section>
     </>
   );

@@ -54,6 +54,8 @@ const lifeboat: LifeboatApi = {
   onCalendarProgress: (fn) => listen("calendar-progress", fn),
   scanTakeout: () => ipcRenderer.invoke("takeout-scan"),
   importPhotosTakeout: () => ipcRenderer.invoke("takeout-import-photos"),
+  organizeTakeoutFolder: () => ipcRenderer.invoke("takeout-organize-folder"),
+  openTakeoutGallery: () => ipcRenderer.invoke("takeout-open-gallery"),
   onPreservationProgress: (fn) => listen("preservation-progress", fn),
 };
 

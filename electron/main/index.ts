@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
 import path from "node:path";
 import { z } from "zod";
 import { LifeboatDatabase } from "../database";
-import { authenticate, inventory, authFor } from "../google";
+import { authenticate, inventory, authFor, validateClientFile } from "../google";
 import { tokens } from "../keychain";
 import { exportReports } from "../report";
 import { redact, validateAccountRoles } from "../security";
@@ -23,6 +23,7 @@ import type { AccountRole } from "../types";
 import { aggregateVerification, validateSample } from "../verification";
 import {
   authorizeFeature,
+  SOURCE_SCOPES,
   GMAIL_COPY_SCOPES,
   GMAIL_SOURCE_READ_SCOPES,
   GMAIL_SETTINGS_SCOPES,
@@ -45,7 +46,7 @@ import {
   runCalendars,
   verifyCalendarsDestinationOnly,
 } from "../calendar";
-import { importPhotosTakeoutArchives, scanTakeout } from "../preservation";
+import { importPhotosTakeoutArchives, organizeTakeoutFolder, scanTakeout } from "../preservation";
 import {
   discoverGmail,
   ensureLabels,
@@ -191,6 +192,7 @@ async function chooseClientPath() {
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (r.canceled) return "";
+  await validateClientFile(r.filePaths[0]);
   clientPath = r.filePaths[0];
   db.setSetting("clientPath", clientPath);
   return clientPath;
@@ -261,9 +263,24 @@ ipcMain.handle("save-settings", (_e, v) => {
   return dashboard();
 });
 ipcMain.handle("run-inventory", async () => {
-  const source = db.accounts().find((a) => a.role === "source");
+  let source = db.accounts().find((a) => a.role === "source");
   if (!source) throw new Error("Connect the source account first");
   if (inventoryRunning) throw new Error("Account inventory is already running");
+  try {
+    await assertGrantedScopes("source", SOURCE_SCOPES);
+  } catch {
+    const p = await ensureClientPath();
+    const acct = await authorizeFeature("source", p, SOURCE_SCOPES),
+      set = dashboard().settings,
+      dest = db.accounts().find((a) => a.role === "destination");
+    if (dest)
+      validateAccountRoles(acct.email, dest.email, [set.destinationEmail, set.fallbackEmail]);
+    source = {
+      ...acct,
+      scopes: [...new Set([...(source.scopes ?? []), ...acct.scopes])],
+    };
+    db.saveAccount(source);
+  }
   inventoryRunning = true;
   inventoryCancelled = false;
   inventoryLogs = [];
@@ -639,6 +656,61 @@ ipcMain.handle("takeout-import-photos", async () => {
     preservationRunning = false;
   }
 });
+ipcMain.handle("takeout-organize-folder", async () => {
+  const source = await dialog.showOpenDialog(win!, {
+    title: "Choose folder containing Takeout archives or extracted folders",
+    properties: ["openDirectory"],
+  });
+  if (source.canceled) return dashboard();
+  const destination = await dialog.showOpenDialog(win!, {
+    title: "Choose local/NAS destination folder",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (destination.canceled) return dashboard();
+  preservationRunning = true;
+  preservationProgress = { operation: "Starting Takeout organization" };
+  recordActivity("preservation", {
+    operation: "Starting Takeout organization",
+    source: source.filePaths[0],
+  });
+  try {
+    const result = await organizeTakeoutFolder(
+      source.filePaths[0],
+      destination.filePaths[0],
+      (p) => {
+        preservationProgress = p;
+        recordActivity("preservation", p);
+        win?.webContents.send("preservation-progress", p);
+      },
+    );
+    db.setSetting("takeoutResult", result);
+    recordActivity(
+      "preservation",
+      {
+        operation: "Takeout organization complete",
+        files: result.files,
+        bytes: result.bytes,
+        media: result.media,
+        sidecars: result.sidecars,
+        done: true,
+      },
+      "info",
+    );
+    return dashboard();
+  } catch (e) {
+    recordActivity("preservation", { message: redact(e) }, "error");
+    throw e;
+  } finally {
+    preservationRunning = false;
+  }
+});
+ipcMain.handle("takeout-open-gallery", async () => {
+  const result = db.setting<any>("takeoutResult", null);
+  if (!result?.galleryFile) throw new Error("Organize a Takeout folder first");
+  const outcome = await shell.openPath(result.galleryFile);
+  if (outcome) throw new Error(outcome);
+  return dashboard();
+});
 ipcMain.handle("drive-pause", () => {
   if (!activeJob) return dashboard();
   runner.pause();
@@ -648,12 +720,12 @@ ipcMain.handle("drive-verify", async (_e, input: { remote: string; destination: 
   if (runner.running()) throw new Error("Pause or finish the backup before verification");
   const source = db.accounts().find((a) => a.role === "source"),
     binding = db.setting<any>("driveRemoteBinding", null);
-  if (
-    !source?.subject ||
-    !binding ||
-    binding.remote !== input.remote ||
-    binding.sourceSubject !== source.subject
-  )
+  if (!source?.subject) throw new Error("Reconnect source to record its stable Google identity");
+  if (!binding)
+    throw new Error(
+      "Start the Drive backup before verification. The first confirmed backup locks the rclone remote to the connected source account.",
+    );
+  if (binding.remote !== input.remote || binding.sourceSubject !== source.subject)
     throw new Error(
       "Verify the same rclone remote that was locked to the connected source account",
     );

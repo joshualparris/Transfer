@@ -15,6 +15,8 @@ const ClientFile = z.object({
     redirect_uris: z.array(z.string()).optional(),
   }),
 });
+const LOOPBACK_HOST = "127.0.0.1";
+const OAUTH_TIMEOUT_MS = 90000;
 export const SOURCE_SCOPES = [
   "openid",
   "email",
@@ -57,44 +59,80 @@ export const GMAIL_SETTINGS_SCOPES = [
 export const CONTACTS_COPY_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/contacts"];
 
 async function clientConfig(path: string) {
-  const parsed = ClientFile.safeParse(JSON.parse(await readFile(path, "utf8")));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(path, "utf8"));
+  } catch {
+    throw new Error("This is not a valid Google OAuth desktop client file");
+  }
+  const parsed = ClientFile.safeParse(raw);
   if (!parsed.success) throw new Error("This is not a valid Google OAuth desktop client file");
   return parsed.data.installed;
 }
+
+export async function validateClientFile(path: string) {
+  await clientConfig(path);
+  return true;
+}
+
 export async function authenticate(role: AccountRole, path: string): Promise<AccountSummary> {
   const cfg = await clientConfig(path);
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "localhost", () => resolve());
+    server.listen(0, LOOPBACK_HOST, () => resolve());
   });
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("Could not start local OAuth callback");
-  // Google desktop clients are issued with http://localhost as their loopback
-  // redirect. The ephemeral port is permitted; keep the registered host/path
-  // instead of changing it to 127.0.0.1, which some projects reject.
-  const redirect = `http://localhost:${addr.port}`;
+  const redirect = `http://${LOOPBACK_HOST}:${addr.port}`;
   const oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect);
   const state = randomUUID();
   const scopes = role === "source" ? SOURCE_SCOPES : DESTINATION_SCOPES;
   const codePromise = new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("OAuth timed out")), 180000);
+    let settled = false,
+      closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      server.close();
+    };
+    let timeout: NodeJS.Timeout;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      close();
+      reject(error);
+    };
+    timeout = setTimeout(
+      () =>
+        fail(
+          new Error(
+            "Google authorisation timed out. If the browser tab was closed or blocked, try again.",
+          ),
+        ),
+      OAUTH_TIMEOUT_MS,
+    );
     server.on("request", (req, res) => {
       try {
         const u = new URL(req.url ?? "", redirect);
-        if (u.pathname !== "/") return;
+        if (u.pathname !== "/") {
+          res.statusCode = 404;
+          res.end("Not found.");
+          return;
+        }
         if (u.searchParams.get("state") !== state) throw new Error("OAuth state mismatch");
         const code = u.searchParams.get("code");
         if (!code) throw new Error(u.searchParams.get("error") ?? "No authorization code");
         res.end("Cornerstone Lifeboat connected. You can close this tab.");
         clearTimeout(timeout);
+        settled = true;
+        close();
         resolve(code);
       } catch (e) {
         res.statusCode = 400;
         res.end("Authorization failed.");
-        reject(e);
-      } finally {
-        server.close();
+        fail(e instanceof Error ? e : new Error(String(e)));
       }
     });
   });
@@ -130,29 +168,58 @@ export async function authorizeFeature(role: AccountRole, path: string, scopes: 
     server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "localhost", resolve);
+    server.listen(0, LOOPBACK_HOST, resolve);
   });
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("Could not start OAuth callback");
-  const redirect = `http://localhost:${addr.port}`,
+  const redirect = `http://${LOOPBACK_HOST}:${addr.port}`,
     oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect),
     state = randomUUID(),
     codePromise = new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("OAuth timed out")), 180000);
+      let settled = false,
+        closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        server.close();
+      };
+      let timer: NodeJS.Timeout;
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        close();
+        reject(error);
+      };
+      timer = setTimeout(
+        () =>
+          fail(
+            new Error(
+              "Google authorisation timed out. If the browser tab was closed or blocked, try again.",
+            ),
+          ),
+        OAUTH_TIMEOUT_MS,
+      );
       server.on("request", (req, res) => {
         try {
           const u = new URL(req.url ?? "", redirect);
-          if (u.pathname !== "/") return;
+          if (u.pathname !== "/") {
+            res.statusCode = 404;
+            res.end("Not found.");
+            return;
+          }
           if (u.searchParams.get("state") !== state) throw new Error("OAuth state mismatch");
           const code = u.searchParams.get("code");
           if (!code) throw new Error(u.searchParams.get("error") ?? "Authorization failed");
           res.end("Feature authorised. You can close this tab.");
           clearTimeout(timer);
+          settled = true;
+          close();
           resolve(code);
         } catch (e) {
-          reject(e);
-        } finally {
-          server.close();
+          res.statusCode = 400;
+          res.end("Authorization failed.");
+          fail(e instanceof Error ? e : new Error(String(e)));
         }
       });
     });

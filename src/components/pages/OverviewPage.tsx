@@ -10,6 +10,7 @@ export default function OverviewPage({
   busy,
   act,
   actionState,
+  goTo,
 }: {
   data: DashboardData;
   source: boolean;
@@ -17,8 +18,16 @@ export default function OverviewPage({
   busy: boolean;
   act: (label: string, fn: () => Promise<any>) => Promise<any>;
   actionState: Record<string, ActionState>;
+  goTo: (page: string) => void;
 }) {
   const inv = data.latestInventory;
+  const inventoryStatus = data.inventory.progress;
+  const inventoryRunning = data.inventory.running || actionState.inventory?.status === "running";
+  const counts = inventoryStatus?.counts
+    ? Object.entries(inventoryStatus.counts)
+        .map(([key, value]) => `${key}: ${new Intl.NumberFormat().format(Number(value))}`)
+        .join(" · ")
+    : "";
   return (
     <>
       <section className="hero">
@@ -33,12 +42,26 @@ export default function OverviewPage({
           <p>Inventory, copy without deletion, then independently verify.</p>
         </div>
         <button
-          disabled={busy || !source}
+          disabled={inventoryRunning || !source}
           onClick={() => act("inventory", () => window.lifeboat.runInventory())}
         >
-          {busy ? "Working…" : "Run inventory"}
+          {inventoryRunning ? "Inventory running" : "Run inventory"}
         </button>
       </section>
+      {(inventoryRunning || data.inventory.logs.length > 0) && (
+        <section className="statusstrip">
+          <div>
+            <b>{inventoryRunning ? "Account inventory running" : "Latest inventory activity"}</b>
+            <span>
+              {inventoryStatus?.message ?? "Preparing inventory"}
+              {counts ? ` — ${counts}` : ""}
+            </span>
+          </div>
+          <button className="secondary" onClick={() => goTo("Inventory")}>
+            View inventory log
+          </button>
+        </section>
+      )}
       <div className="metrics">
         <Metric
           label="Drive items"

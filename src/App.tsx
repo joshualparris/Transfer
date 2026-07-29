@@ -68,7 +68,7 @@ export default function App() {
       return result;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      throw e;
+      return undefined;
     }
   };
 
@@ -87,6 +87,7 @@ export default function App() {
   const inventoryBusy = running(["inventory", "cancel-inventory", "drive-discover"]);
   const driveBusy = running(["rclone", "remote", "pick", "test", "start", "pause", "verify"]);
   const gmailBusy = running([
+    "gmail-source-auth",
     "gmail-auth",
     "settings-auth",
     "archive",
@@ -101,7 +102,12 @@ export default function App() {
   const calendarBusy = Object.entries(actionState).some(
     ([label, item]) => label.startsWith("calendar-") && item.status === "running",
   );
-  const preservationBusy = running(["takeout-scan", "takeout-import-photos"]);
+  const preservationBusy = running([
+    "takeout-scan",
+    "takeout-import-photos",
+    "takeout-organize-folder",
+    "takeout-open-gallery",
+  ]);
 
   const page = {
     Overview: (
@@ -112,6 +118,7 @@ export default function App() {
         busy={inventoryBusy}
         act={act}
         actionState={actionState}
+        goTo={setActive}
       />
     ),
     "Activity & logs": <ActivityPage data={data} />,
