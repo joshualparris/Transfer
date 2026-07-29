@@ -32,6 +32,12 @@ export default function PreservationPage({
         >
           Choose and checksum Takeout folder
         </button>
+        <button
+          disabled={busy || p.running}
+          onClick={() => act("takeout-import-photos", () => window.lifeboat.importPhotosTakeout())}
+        >
+          Import Photos Takeout to NAS
+        </button>
       </section>
       <div className="metrics">
         <div className="metric">
@@ -55,8 +61,14 @@ export default function PreservationPage({
         <h3>What to do</h3>
         <ol>
           <li>Request Google Takeout for Google Photos and Keep from the source account.</li>
-          <li>Download and extract every archive part into one folder.</li>
-          <li>Use the button above and choose a separate evidence-output folder.</li>
+          <li>
+            For the fastest Photos path, download every archive part, then use the import button and
+            choose the NAS/local destination folder.
+          </li>
+          <li>
+            For an already extracted Takeout folder, use the checksum button and choose a separate
+            evidence-output folder.
+          </li>
           <li>Keep both the extracted archive and generated JSON/CSV checksum manifests.</li>
         </ol>
         <p>{p.progress?.operation ?? "No Takeout folder verified yet."}</p>
