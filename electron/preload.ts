@@ -53,6 +53,7 @@ const lifeboat: LifeboatApi = {
   verifyCalendarDestinationOnly: () => ipcRenderer.invoke("calendar-verify-destination"),
   onCalendarProgress: (fn) => listen("calendar-progress", fn),
   scanTakeout: () => ipcRenderer.invoke("takeout-scan"),
+  importPhotosTakeout: () => ipcRenderer.invoke("takeout-import-photos"),
   onPreservationProgress: (fn) => listen("preservation-progress", fn),
 };
 
