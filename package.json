@@ -2,6 +2,7 @@
   "name": "cornerstone-lifeboat",
   "version": "0.4.0",
   "private": true,
+  "author": "Joshua Parris <235861209+joshuaparris-max@users.noreply.github.com>",
   "description": "Local-first Google Workspace migration cockpit",
   "main": "dist-electron/electron/main/index.js",
   "scripts": {
