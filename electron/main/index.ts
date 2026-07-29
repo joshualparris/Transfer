@@ -183,6 +183,27 @@ function createWindow() {
   if (process.env.VITE_DEV_SERVER_URL) win.loadURL(process.env.VITE_DEV_SERVER_URL);
   else win.loadFile(path.join(__dirname, "../../../dist/index.html"));
 }
+
+async function chooseClientPath() {
+  const r = await dialog.showOpenDialog(win!, {
+    title: "Select Google OAuth desktop client",
+    properties: ["openFile"],
+    filters: [{ name: "JSON", extensions: ["json"] }],
+  });
+  if (r.canceled) return "";
+  clientPath = r.filePaths[0];
+  db.setSetting("clientPath", clientPath);
+  return clientPath;
+}
+
+async function ensureClientPath() {
+  const existing = clientPath || db.setting("clientPath", "");
+  if (existing) return existing;
+  const selected = await chooseClientPath();
+  if (!selected) throw new Error("Select client_secret.json first");
+  return selected;
+}
+
 app.whenReady().then(() => {
   db = new LifeboatDatabase(path.join(app.getPath("userData"), "lifeboat.db"));
   const savedSettings = db.setting("settings", defaults);
@@ -204,20 +225,11 @@ app.on("window-all-closed", () => {
 });
 ipcMain.handle("dashboard", () => dashboard());
 ipcMain.handle("pick-client", async () => {
-  const r = await dialog.showOpenDialog(win!, {
-    title: "Select Google OAuth desktop client",
-    properties: ["openFile"],
-    filters: [{ name: "JSON", extensions: ["json"] }],
-  });
-  if (r.canceled) return false;
-  clientPath = r.filePaths[0];
-  db.setSetting("clientPath", clientPath);
-  return true;
+  return !!(await chooseClientPath());
 });
 ipcMain.handle("connect", async (_e, role: AccountRole) => {
   if (!["source", "destination"].includes(role)) throw new Error("Invalid account role");
-  const p = clientPath || db.setting("clientPath", "");
-  if (!p) throw new Error("Select client_secret.json first");
+  const p = await ensureClientPath();
   const acct = await authenticate(role, p),
     others = db.accounts().filter((a) => a.role !== role),
     set = dashboard().settings;
@@ -455,8 +467,7 @@ ipcMain.handle("drive-start", async (_e, input: { remote: string; destination: s
   return dashboard();
 });
 ipcMain.handle("calendar-authorize", async () => {
-  const p = clientPath || db.setting("clientPath", "");
-  if (!p) throw new Error("Select client_secret.json first");
+  const p = await ensureClientPath();
   const existing = db.accounts().find((a) => a.role === "destination");
   if (!existing) throw new Error("Connect destination first");
   const acct = await authorizeFeature("destination", p, CALENDAR_DESTINATION_SCOPES);
@@ -736,8 +747,7 @@ function gmailAccounts() {
   return { source, destination };
 }
 ipcMain.handle("contacts-authorize", async () => {
-  const p = clientPath || db.setting("clientPath", "");
-  if (!p) throw new Error("Select client_secret.json first");
+  const p = await ensureClientPath();
   const existing = db.accounts().find((a) => a.role === "destination");
   if (!existing) throw new Error("Connect destination first");
   const acct = await authorizeFeature("destination", p, CONTACTS_COPY_SCOPES);
@@ -863,8 +873,7 @@ ipcMain.handle("contacts-verify-destination", async () => {
 });
 ipcMain.handle("gmail-authorize", async (_e, feature: "copy" | "source-read" | "settings") => {
   const role = feature === "copy" ? "destination" : "source",
-    p = clientPath || db.setting("clientPath", "");
-  if (!p) throw new Error("Select client_secret.json first");
+    p = await ensureClientPath();
   const acct = await authorizeFeature(
       role,
       p,
