@@ -82,7 +82,7 @@ const settingsSchema = z.object({
   fallbackEmail: z.string().email(),
 });
 const defaults = {
-  deadline: "2026-07-24",
+  deadline: "2026-08-14",
   dryRun: true,
   sourceEmail: "joshua.parris@cornerstone.edu.au",
   destinationEmail: "joshualparris@gmail.com",
@@ -186,7 +186,7 @@ function createWindow() {
 app.whenReady().then(() => {
   db = new LifeboatDatabase(path.join(app.getPath("userData"), "lifeboat.db"));
   const savedSettings = db.setting("settings", defaults);
-  if (savedSettings.deadline === "2026-08-03")
+  if (["2026-07-24", "2026-08-03"].includes(savedSettings.deadline))
     db.setSetting("settings", { ...savedSettings, deadline: defaults.deadline });
   session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
     callback(false),
