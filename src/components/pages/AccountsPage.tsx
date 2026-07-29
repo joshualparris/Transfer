@@ -9,6 +9,18 @@ export default function AccountsPage({
   busy: boolean;
   act: (label: string, fn: () => Promise<any>) => Promise<any>;
 }) {
+  const connect = async (role: "source" | "destination") => {
+    try {
+      return await window.lifeboat.connect(role);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Select client_secret.json first")) throw error;
+      const selected = await window.lifeboat.pickClient();
+      if (!selected) return data;
+      return window.lifeboat.connect(role);
+    }
+  };
+
   return (
     <>
       <section className="panel intro">
@@ -39,10 +51,7 @@ export default function AccountsPage({
                   Revoke & remove
                 </button>
               ) : (
-                <button
-                  disabled={busy}
-                  onClick={() => act(role, () => window.lifeboat.connect(role))}
-                >
+                <button disabled={busy} onClick={() => act(role, () => connect(role))}>
                   Connect {role}
                 </button>
               )}
