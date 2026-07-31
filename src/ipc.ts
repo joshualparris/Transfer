@@ -20,6 +20,7 @@ export interface LifeboatApi {
   connect: (role: "source" | "destination") => Promise<DashboardData>;
   disconnect: (role: "source" | "destination") => Promise<DashboardData>;
   saveSettings: (value: unknown) => Promise<DashboardData>;
+  authorizeInventory: () => Promise<DashboardData>;
   runInventory: () => Promise<DashboardData>;
   cancelInventory: () => Promise<DashboardData>;
   onInventoryProgress: (fn: (progress: any) => void) => () => void;
@@ -35,6 +36,10 @@ export interface LifeboatApi {
   pauseDrive: () => Promise<DashboardData>;
   verifyDrive: (value: DriveConfig) => Promise<DashboardData>;
   onDriveProgress: (fn: (progress: any) => void) => () => void;
+  pickBookshelfDestination: () => Promise<DashboardData>;
+  scanBookshelf: () => Promise<DashboardData>;
+  rescueBookshelf: (value: { destination?: string }) => Promise<DashboardData>;
+  onBookshelfProgress: (fn: (progress: any) => void) => () => void;
   authorizeGmail: (feature: "copy" | "source-read" | "settings") => Promise<DashboardData>;
   saveGmailConfig: (value: GmailConfig) => Promise<DashboardData>;
   pickGmailArchive: () => Promise<DashboardData>;

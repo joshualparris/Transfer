@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.0.3",
-    "better-sqlite3": "12.11.1",
+    "better-sqlite3": "^12.11.1",
     "googleapis": "173.0.0",
     "keytar": "7.9.0",
     "react": "19.2.7",

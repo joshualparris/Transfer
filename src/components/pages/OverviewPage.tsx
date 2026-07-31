@@ -19,6 +19,14 @@ export default function OverviewPage({
   actionState: Record<string, ActionState>;
 }) {
   const inv = data.latestInventory;
+  const sourceAccount = data.accounts.find((a) => a.role === "source");
+  const inventoryGranted = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/contacts.other.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+  ].every((scope) => sourceAccount?.scopes.includes(scope));
   return (
     <>
       <section className="hero">
@@ -32,12 +40,20 @@ export default function OverviewPage({
           </div>
           <p>Inventory, copy without deletion, then independently verify.</p>
         </div>
-        <button
-          disabled={busy || !source}
-          onClick={() => act("inventory", () => window.lifeboat.runInventory())}
-        >
-          {busy ? "Working…" : "Run inventory"}
-        </button>
+        <div className="actions">
+          <button
+            disabled={busy || !source}
+            onClick={() => act("inventory-auth", () => window.lifeboat.authorizeInventory())}
+          >
+            {inventoryGranted ? "Re-authorise inventory access" : "Authorise inventory access"}
+          </button>
+          <button
+            disabled={busy || !source || !inventoryGranted}
+            onClick={() => act("inventory", () => window.lifeboat.runInventory())}
+          >
+            {busy ? "Working…" : "Run inventory"}
+          </button>
+        </div>
       </section>
       <div className="metrics">
         <Metric
@@ -58,7 +74,12 @@ export default function OverviewPage({
         <Check
           done={source}
           title="Source identity verified"
-          note={data.accounts.find((a) => a.role === "source")?.email ?? "Not connected"}
+          note={sourceAccount?.email ?? "Not connected"}
+        />
+        <Check
+          done={inventoryGranted}
+          title="Source inventory access authorised"
+          note={inventoryGranted ? "Read-only Google scopes granted" : "Authorise before inventory"}
         />
         <Check
           done={dest}

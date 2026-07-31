@@ -89,6 +89,7 @@ export interface DashboardData {
   contacts: { stats: any; running: boolean; progress: any; config: { otherPolicy: string } };
   calendar: { stats: any; running: boolean; progress: any };
   preservation: { running: boolean; progress: any; result: any };
+  bookshelf: { running: boolean; progress: any; config: any; result: any; scan: any };
   activity: {
     logs: Array<{
       created_at: string;

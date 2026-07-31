@@ -83,7 +83,7 @@ export default function CalendarPage({
           </button>
         </div>
         <p>
-          {p.operation ?? "Idle"} {p.copied ? `· ${n(p.copied)} copied` : ""}
+          {p?.operation ?? "Idle"} {p?.copied ? `· ${n(p.copied)} copied` : ""}
         </p>
       </section>
       <section className="panel">

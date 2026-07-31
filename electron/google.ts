@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { CodeChallengeMethod } from "google-auth-library";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -18,13 +19,17 @@ const ClientFile = z.object({
 export const SOURCE_SCOPES = [
   "openid",
   "email",
+];
+export const DESTINATION_SCOPES = ["openid", "email"];
+export const SOURCE_INVENTORY_SCOPES = [
+  "openid",
+  "email",
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/contacts.readonly",
   "https://www.googleapis.com/auth/contacts.other.readonly",
   "https://www.googleapis.com/auth/calendar.readonly",
 ];
-export const DESTINATION_SCOPES = ["openid", "email"];
 export const CONTACTS_DESTINATION_SCOPES = [
   "openid",
   "email",
@@ -66,15 +71,13 @@ export async function authenticate(role: AccountRole, path: string): Promise<Acc
   const server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "localhost", () => resolve());
+    server.listen(0, "127.0.0.1", () => resolve());
   });
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("Could not start local OAuth callback");
-  // Google desktop clients are issued with http://localhost as their loopback
-  // redirect. The ephemeral port is permitted; keep the registered host/path
-  // instead of changing it to 127.0.0.1, which some projects reject.
-  const redirect = `http://localhost:${addr.port}`;
+  const redirect = `http://127.0.0.1:${addr.port}`;
   const oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect);
+  const { codeVerifier, codeChallenge } = await oauth.generateCodeVerifierAsync();
   const state = randomUUID();
   const scopes = role === "source" ? SOURCE_SCOPES : DESTINATION_SCOPES;
   const codePromise = new Promise<string>((resolve, reject) => {
@@ -98,17 +101,18 @@ export async function authenticate(role: AccountRole, path: string): Promise<Acc
       }
     });
   });
-  await shell.openExternal(
-    oauth.generateAuthUrl({
-      access_type: "offline",
-      prompt: "consent",
-      scope: scopes,
-      state,
-      include_granted_scopes: true,
-    }),
-  );
+  const authUrl = oauth.generateAuthUrl({
+    access_type: "offline",
+    prompt: "select_account",
+    scope: scopes,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: CodeChallengeMethod.S256,
+  });
+  console.info("Opening Google OAuth URL", authUrl);
+  await shell.openExternal(authUrl);
   const code = await codePromise;
-  const { tokens: creds } = await oauth.getToken(code);
+  const { tokens: creds } = await oauth.getToken({ code, codeVerifier });
   oauth.setCredentials(creds);
   const info = await google.oauth2({ version: "v2", auth: oauth }).userinfo.get();
   if (!info.data.email) throw new Error("Google did not return a verified email");
@@ -130,12 +134,13 @@ export async function authorizeFeature(role: AccountRole, path: string, scopes: 
     server = createServer();
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "localhost", resolve);
+    server.listen(0, "127.0.0.1", resolve);
   });
   const addr = server.address();
   if (!addr || typeof addr === "string") throw new Error("Could not start OAuth callback");
-  const redirect = `http://localhost:${addr.port}`,
+  const redirect = `http://127.0.0.1:${addr.port}`,
     oauth = new google.auth.OAuth2(cfg.client_id, cfg.client_secret, redirect),
+    { codeVerifier, codeChallenge } = await oauth.generateCodeVerifierAsync(),
     state = randomUUID(),
     codePromise = new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("OAuth timed out")), 180000);
@@ -156,16 +161,17 @@ export async function authorizeFeature(role: AccountRole, path: string, scopes: 
         }
       });
     });
-  await shell.openExternal(
-    oauth.generateAuthUrl({
-      access_type: "offline",
-      prompt: "consent",
-      scope: scopes,
-      state,
-      include_granted_scopes: true,
-    }),
-  );
-  const { tokens: creds } = await oauth.getToken(await codePromise);
+  const authUrl = oauth.generateAuthUrl({
+    access_type: "offline",
+    prompt: "select_account",
+    scope: scopes,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: CodeChallengeMethod.S256,
+  });
+  console.info("Opening Google OAuth URL", authUrl);
+  await shell.openExternal(authUrl);
+  const { tokens: creds } = await oauth.getToken({ code: await codePromise, codeVerifier });
   oauth.setCredentials(creds);
   const granted = creds.access_token ? (await oauth.getTokenInfo(creds.access_token)).scopes : [];
   const missing = scopes.filter(

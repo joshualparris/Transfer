@@ -161,8 +161,8 @@ export default function GmailPage({
           )}
         </div>
         <p>
-          {data.gmail.progress.operation ?? "Idle"}{" "}
-          {data.gmail.progress.processed
+          {data.gmail.progress?.operation ?? "Idle"}{" "}
+          {data.gmail.progress?.processed
             ? `· ${new Intl.NumberFormat().format(data.gmail.progress.processed)} processed`
             : ""}
         </p>

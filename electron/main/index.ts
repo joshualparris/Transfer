@@ -19,6 +19,7 @@ import {
   checkArgs,
 } from "../rclone";
 import { discoverDrive, sharedAudit } from "../drive";
+import { rescueBookshelf, scanBookshelf } from "../bookshelf";
 import type { AccountRole } from "../types";
 import { aggregateVerification, validateSample } from "../verification";
 import {
@@ -26,6 +27,7 @@ import {
   GMAIL_COPY_SCOPES,
   GMAIL_SOURCE_READ_SCOPES,
   GMAIL_SETTINGS_SCOPES,
+  SOURCE_INVENTORY_SCOPES,
   CONTACTS_COPY_SCOPES,
   CALENDAR_DESTINATION_SCOPES,
   assertGrantedScopes,
@@ -72,6 +74,8 @@ let calendarRunning = false,
   calendarProgress: any = {};
 let preservationRunning = false,
   preservationProgress: any = {};
+let bookshelfRunning = false,
+  bookshelfProgress: any = {};
 const runner = new RcloneProcess(),
   gmailRunner = new GmailRunner();
 const settingsSchema = z.object({
@@ -146,6 +150,13 @@ function dashboard() {
       progress: preservationProgress,
       result: db.setting("takeoutResult", null),
     },
+    bookshelf: {
+      running: bookshelfRunning,
+      progress: bookshelfProgress,
+      config: db.setting("bookshelfConfig", {}),
+      result: db.setting("bookshelfResult", null),
+      scan: db.setting("bookshelfScan", null),
+    },
     activity: {
       logs: db.activityLogs(1500),
       diagnostics: db.failureDiagnostics(),
@@ -159,6 +170,7 @@ function dashboard() {
           running: preservationRunning,
           progress: preservationProgress,
         },
+        bookshelf: { running: bookshelfRunning, progress: bookshelfProgress },
       },
     },
   };
@@ -251,6 +263,7 @@ ipcMain.handle("save-settings", (_e, v) => {
 ipcMain.handle("run-inventory", async () => {
   const source = db.accounts().find((a) => a.role === "source");
   if (!source) throw new Error("Connect the source account first");
+  await assertGrantedScopes("source", SOURCE_INVENTORY_SCOPES);
   if (inventoryRunning) throw new Error("Account inventory is already running");
   inventoryRunning = true;
   inventoryCancelled = false;
@@ -281,6 +294,20 @@ ipcMain.handle("run-inventory", async () => {
     recordActivity("inventory", entry);
     win?.webContents.send("inventory-progress", entry);
   }
+});
+ipcMain.handle("inventory-authorize", async () => {
+  const p = clientPath || db.setting("clientPath", "");
+  if (!p) throw new Error("Select client_secret.json first");
+  const existing = db.accounts().find((a) => a.role === "source");
+  if (!existing) throw new Error("Connect source first");
+  const acct = await authorizeFeature("source", p, SOURCE_INVENTORY_SCOPES);
+  if (acct.subject !== existing.subject || acct.email !== existing.email)
+    throw new Error(`Authorised ${acct.email}, expected ${existing.email}`);
+  db.saveAccount({
+    ...acct,
+    scopes: [...new Set([...existing.scopes, ...acct.scopes])],
+  });
+  return dashboard();
 });
 ipcMain.handle("cancel-inventory", () => {
   inventoryCancelled = true;
@@ -381,6 +408,93 @@ ipcMain.handle("drive-page", (_e, o = 0, l = 100, shared = false) =>
     ? sharedAudit(db.drivePage(o, l, true), dashboard().settings.destinationEmail)
     : db.drivePage(o, l, false),
 );
+ipcMain.handle("bookshelf-pick-destination", async () => {
+  const r = await dialog.showOpenDialog(win!, {
+    title: "Choose BookShelf rescue destination",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (r.canceled) return dashboard();
+  const tested = await testDestination(r.filePaths[0]);
+  db.setSetting("bookshelfConfig", {
+    destination: tested.path,
+    freeBytes: tested.freeBytes,
+    totalBytes: tested.totalBytes,
+  });
+  return dashboard();
+});
+ipcMain.handle("bookshelf-scan", async () => {
+  const source = db.accounts().find((a) => a.role === "source");
+  if (!source) throw new Error("Connect the source account first");
+  if (bookshelfRunning) throw new Error("BookShelf rescue is already running");
+  bookshelfRunning = true;
+  try {
+    const books = await scanBookshelf((value) => {
+      bookshelfProgress = value;
+      recordActivity("bookshelf", value);
+      win?.webContents.send("bookshelf-progress", value);
+    });
+    const scan = {
+      generatedAt: new Date().toISOString(),
+      discovered: books.length,
+      ebooks: books.filter((book) => book.kind === "ebook").length,
+      audiobookTracks: books.filter((book) => book.kind === "audiobook-track").length,
+      audiobooks: new Set(
+        books
+          .filter((book) => book.kind === "audiobook-track")
+          .map((book) => book.audiobookId || book.parentTitle || book.id),
+      ).size,
+      withProgress: books.filter((book) => book.readingProgress > 0 || book.lastLocation).length,
+      bySource: Object.fromEntries(
+        Object.entries(
+          books.reduce<Record<string, number>>((acc, book) => {
+            acc[book.source] = (acc[book.source] ?? 0) + 1;
+            return acc;
+          }, {}),
+        ).sort(([a], [b]) => a.localeCompare(b)),
+      ),
+      books,
+    };
+    db.setSetting("bookshelfScan", scan);
+    bookshelfProgress = { operation: "BookShelf scan complete", files: books.length, done: true };
+    win?.webContents.send("bookshelf-progress", bookshelfProgress);
+    return dashboard();
+  } finally {
+    bookshelfRunning = false;
+  }
+});
+ipcMain.handle("bookshelf-rescue", async (_e, input: { destination?: string }) => {
+  const source = db.accounts().find((a) => a.role === "source");
+  if (!source) throw new Error("Connect the source account first");
+  if (bookshelfRunning) throw new Error("BookShelf rescue is already running");
+  const destination = validateDestination(
+    input.destination || db.setting<any>("bookshelfConfig", {}).destination,
+  );
+  const confirm = await dialog.showMessageBox(win!, {
+    type: "warning",
+    buttons: ["Cancel", "Rescue BookShelf"],
+    defaultId: 0,
+    cancelId: 0,
+    title: "Confirm BookShelf rescue",
+    message: `Download BookShelf files from ${source.email}`,
+    detail: `Destination: ${destination}\n\nThis reads the known BookShelf Drive folders, downloads supported book files, and writes JSON/CSV metadata including reading progress. It never deletes or modifies source Drive files.`,
+  });
+  if (confirm.response !== 1) return dashboard();
+  bookshelfRunning = true;
+  try {
+    const result = await rescueBookshelf(destination, (value) => {
+      bookshelfProgress = value;
+      recordActivity("bookshelf", value);
+      win?.webContents.send("bookshelf-progress", value);
+    });
+    db.setSetting("bookshelfConfig", { ...db.setting("bookshelfConfig", {}), destination });
+    db.setSetting("bookshelfResult", { ...result, completedAt: new Date().toISOString() });
+    bookshelfProgress = { operation: "BookShelf rescue complete", ...result, done: true };
+    win?.webContents.send("bookshelf-progress", bookshelfProgress);
+    return dashboard();
+  } finally {
+    bookshelfRunning = false;
+  }
+});
 ipcMain.handle("drive-start", async (_e, input: { remote: string; destination: string }) => {
   const source = db.accounts().find((a) => a.role === "source");
   if (!source) throw new Error("Connect source first");

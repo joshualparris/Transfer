@@ -14,6 +14,7 @@ import ContactsPage from "./components/pages/ContactsPage";
 import CalendarPage from "./components/pages/CalendarPage";
 import PreservationPage from "./components/pages/PreservationPage";
 import ActivityPage from "./components/pages/ActivityPage";
+import BookshelfPage from "./components/pages/BookshelfPage";
 
 const nav = [
   "Overview",
@@ -21,6 +22,7 @@ const nav = [
   "Accounts",
   "Inventory",
   "Drive setup",
+  "BookShelf rescue",
   "Backup",
   "Shared items",
   "Verification",
@@ -48,6 +50,7 @@ export default function App() {
     const offContacts = window.lifeboat.onContactsProgress(() => load());
     const offCalendar = window.lifeboat.onCalendarProgress(() => load());
     const offPreservation = window.lifeboat.onPreservationProgress(() => load());
+    const offBookshelf = window.lifeboat.onBookshelfProgress(() => load());
     return () => {
       offDrive();
       offGmail();
@@ -55,6 +58,7 @@ export default function App() {
       offContacts();
       offCalendar();
       offPreservation();
+      offBookshelf();
     };
   }, []);
 
@@ -84,7 +88,12 @@ export default function App() {
   const running = (labels: string[]) =>
     labels.some((label) => actionState[label]?.status === "running");
   const anyBusy = Object.values(actionState).some((item) => item.status === "running");
-  const inventoryBusy = running(["inventory", "cancel-inventory", "drive-discover"]);
+  const inventoryBusy = running([
+    "inventory-auth",
+    "inventory",
+    "cancel-inventory",
+    "drive-discover",
+  ]);
   const driveBusy = running(["rclone", "remote", "pick", "test", "start", "pause", "verify"]);
   const gmailBusy = running([
     "gmail-auth",
@@ -102,6 +111,7 @@ export default function App() {
     ([label, item]) => label.startsWith("calendar-") && item.status === "running",
   );
   const preservationBusy = running(["takeout-scan"]);
+  const bookshelfBusy = running(["bookshelf-scan", "bookshelf-pick", "bookshelf-rescue"]);
 
   const page = {
     Overview: (
@@ -126,6 +136,7 @@ export default function App() {
       />
     ),
     "Drive setup": <DriveSetupPage data={data} busy={driveBusy} act={act} />,
+    "BookShelf rescue": <BookshelfPage data={data} busy={bookshelfBusy} act={act} />,
     Backup: <BackupPage data={data} busy={driveBusy} act={act} />,
     "Shared items": <SharedPage data={data} />,
     Verification: <VerificationPage data={data} busy={driveBusy} act={act} />,

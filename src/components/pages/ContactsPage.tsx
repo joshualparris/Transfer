@@ -103,7 +103,7 @@ export default function ContactsPage({
           </button>
         </div>
         <p>
-          {p.operation ?? "Idle"} {p.processed ? `· ${n(p.processed)} processed` : ""}
+          {p?.operation ?? "Idle"} {p?.processed ? `· ${n(p.processed)} processed` : ""}
         </p>
       </section>
       <section className="panel">

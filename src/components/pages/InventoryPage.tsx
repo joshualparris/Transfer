@@ -17,6 +17,14 @@ export default function InventoryPage({
 }) {
   const logRef = useRef<HTMLPreElement>(null);
   const followLog = useRef(true);
+  const sourceAccount = data.accounts.find((a) => a.role === "source");
+  const inventoryGranted = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/contacts.other.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+  ].every((scope) => sourceAccount?.scopes.includes(scope));
 
   useEffect(() => {
     const el = logRef.current;
@@ -33,6 +41,12 @@ export default function InventoryPage({
         <div className="actions">
           <button
             disabled={!source || busy}
+            onClick={() => act("inventory-auth", () => window.lifeboat.authorizeInventory())}
+          >
+            {inventoryGranted ? "Re-authorise source inventory access" : "Authorise source inventory access"}
+          </button>
+          <button
+            disabled={!source || busy || !inventoryGranted}
             onClick={() => act("inventory", () => window.lifeboat.runInventory())}
           >
             Account inventory
@@ -46,7 +60,7 @@ export default function InventoryPage({
             </button>
           )}
           <button
-            disabled={!source || busy}
+            disabled={!source || busy || !inventoryGranted}
             onClick={() => act("drive-discover", () => window.lifeboat.discoverDrive())}
           >
             Build Drive manifest
